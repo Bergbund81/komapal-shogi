@@ -1,6 +1,7 @@
 // 画面の組み立てと、操作 → 描画のつなぎ。「CPUとたいせん」と「ふたりでたいせん」を扱う。
 import { AiClient } from '../ai/client';
 import { getLevel } from '../ai/levels';
+import type { EngineStatus } from '../ai/protocol';
 import {
   loadConfig,
   resolveGame,
@@ -21,6 +22,7 @@ import {
   CHECK_MESSAGE,
   COLOR_NAMES,
   CPU_ERROR_MESSAGE,
+  EASY_MODE_MESSAGE,
   THINKING_MESSAGE,
   cpuSideNames,
   resultText,
@@ -44,6 +46,12 @@ const CONTROLS: readonly ControlSpec[] = [
   { id: 'settings', label: 'せってい' },
 ];
 
+/** やねうら王をのせる Worker の URL。?engine=off なら null（かんたんモードを試すため） */
+function engineUrl(): string | null {
+  if (new URLSearchParams(location.search).get('engine') === 'off') return null;
+  return new URL('engine/engine-host.js', document.baseURI).href;
+}
+
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className: string,
@@ -62,6 +70,7 @@ export function startApp(root: HTMLElement): void {
   let interaction = new Interaction(session);
   let cpuTurn: CpuTurn | undefined;
   let cpuError = false;
+  let engineStatus: EngineStatus = 'loading';
   let flipped = false;
   let announced = false;
 
@@ -94,6 +103,8 @@ export function startApp(root: HTMLElement): void {
   const header = el('header', 'topbar', root);
   label(el('h1', 'title', header), 'コマパル 将棋');
   const badge = el('span', 'mode-badge', header);
+  const engineNote = el('span', 'engine-note', header);
+  label(engineNote, EASY_MODE_MESSAGE);
   const message = el('p', 'message', root);
   message.setAttribute('role', 'status');
   message.setAttribute('aria-live', 'polite');
@@ -187,6 +198,12 @@ export function startApp(root: HTMLElement): void {
     renderHands();
     renderHistory(historyList, session.startSfen, session.history);
     setRuby(badge, badgeText());
+    // やねうら王を使うレベル（L3〜5）で、自作αβに切り替わっているときだけ出す
+    engineNote.hidden = !(
+      engineStatus === 'fallback' &&
+      game.mode === 'cpu' &&
+      getLevel(game.level)?.kind === 'engine'
+    );
 
     const msg = currentMessage();
     message.className = `message ${msg.tone}`;
@@ -244,10 +261,15 @@ export function startApp(root: HTMLElement): void {
             client,
             cpuColor: opposite(game.humanColor),
             level: game.level,
+            resigns: getLevel(game.level)?.resigns ?? false,
             onThinking: () => render(),
             onMove: (usi) => {
               render();
               board.animateMove(usi, flipped);
+            },
+            onResign: () => {
+              interaction.cancel();
+              render();
             },
             onError: () => {
               cpuError = true;
@@ -341,8 +363,18 @@ export function startApp(root: HTMLElement): void {
     render();
   });
 
+  client.onEngineStatus = (status) => {
+    engineStatus = status;
+    render();
+  };
+
   // 起動: 前回の設定で盤を用意し、ダイアログで選んでもらう（閉じたら前回の設定のまま始める）
   startNewGame(loadConfig(), false);
+  // 盤が画面に出てから（2 回目の描画の前）、やねうら王を裏で読み込み始める（盤の表示を待たせない）。
+  // 裏のタブでは描画が止まるので、1 秒たったら描画を待たずに始める
+  const warmup = (): void => client.warmup(engineUrl()); // 2 回目以降の呼び出しは何もしない
+  requestAnimationFrame(() => requestAnimationFrame(warmup));
+  setTimeout(warmup, 1000);
   void chooseNewGame().then((started) => {
     if (!started) void cpuTurn?.maybeStart();
   });

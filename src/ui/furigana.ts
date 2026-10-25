@@ -41,6 +41,10 @@ const DICTIONARY: ReadonlyArray<readonly [string, string]> = [
   ['反則', 'はんそく'],
   ['負け', 'まけ'],
   ['勝', 'か'],
+  ['大人', 'おとな'],
+  ['子', 'こ'],
+  ['人', 'ひと'],
+  ['動', 'うご'],
 ];
 
 const BY_LENGTH = [...DICTIONARY].sort((a, b) => b[0].length - a[0].length);

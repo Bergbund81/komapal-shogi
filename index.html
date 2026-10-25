@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>KomaPal Shogi</title>
+    <!-- GitHub Pages でもクロスオリジン分離（やねうら王 wasm のスレッドに必要）にする。バンドルせずそのまま配信 -->
+    <script src="./coi-serviceworker.js"></script>
   </head>
   <body>
     <div id="app"></div>

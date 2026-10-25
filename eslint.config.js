@@ -7,4 +7,6 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.strict,
   prettier,
+  // Node で動かす開発用スクリプト
+  { files: ['tools/**/*.mjs'], languageOptions: { globals: { console: 'readonly' } } },
 );

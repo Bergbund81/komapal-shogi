@@ -4,3 +4,7 @@ tools/.venv/
 __pycache__/
 # 1万局面の照合データは大きいのでコミットしない（tools/rules_crosscheck.py で作る）
 tests/fixtures/crosscheck-10000.json
+# node_modules から tools/copy-assets.mjs でコピーする配信用ファイル（engine-host.js だけはコミットする）
+public/engine/yaneuraou.*
+public/engine/LICENSE.md
+public/coi-serviceworker.js

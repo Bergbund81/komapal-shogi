@@ -1,6 +1,6 @@
 // CPU の番の進め方: 最低 0.6 秒、古い返事を捨てる、人が後手なら CPU が先に指す
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AiCancelledError } from '../src/ai/client';
+import { AiCancelledError, type AiMove } from '../src/ai/client';
 import { resolveGame, sanitizeConfig } from '../src/game/config';
 import { GameSession } from '../src/game/session';
 import { CpuTurn, MIN_THINK_MS } from '../src/ui/cpu-turn';
@@ -11,13 +11,13 @@ afterEach(() => vi.useRealTimers());
 
 /** 返事を手動で返せる偽の AiClient */
 function fakeClient() {
-  const waiting: Array<{ resolve: (m: string | undefined) => void; reject: (e: Error) => void }> =
+  const waiting: Array<{ resolve: (m: AiMove | undefined) => void; reject: (e: Error) => void }> =
     [];
   return {
     waiting,
     choose: vi.fn(
       () =>
-        new Promise<string | undefined>((resolve, reject) => {
+        new Promise<AiMove | undefined>((resolve, reject) => {
           waiting.push({ resolve, reject });
         }),
     ),
@@ -27,7 +27,7 @@ function fakeClient() {
   };
 }
 
-function setup(cpuColor: 'sente' | 'gote') {
+function setup(cpuColor: 'sente' | 'gote', resigns = false) {
   const session = new GameSession();
   const client = fakeClient();
   const events: string[] = [];
@@ -35,9 +35,11 @@ function setup(cpuColor: 'sente' | 'gote') {
     session,
     client,
     cpuColor,
-    level: 1,
+    level: resigns ? 3 : 1,
+    resigns,
     onThinking: (t) => events.push(t ? 'thinking' : 'done'),
     onMove: (usi) => events.push(`move ${usi}`),
+    onResign: () => events.push('resign'),
     onError: (e) => events.push(`error ${e.message}`),
   });
   return { session, client, cpu, events };
@@ -55,7 +57,7 @@ describe('CpuTurn', () => {
     const { session, client, cpu, events } = setup('sente');
     const started = cpu.maybeStart();
     expect(cpu.isThinking).toBe(true);
-    client.waiting[0]?.resolve('7g7f'); // すぐ返事
+    client.waiting[0]?.resolve({ move: '7g7f' }); // すぐ返事
     await vi.advanceTimersByTimeAsync(MIN_THINK_MS - 1);
     expect(session.ply).toBe(0);
     await vi.advanceTimersByTimeAsync(1);
@@ -91,8 +93,8 @@ describe('CpuTurn', () => {
     const stale = client.waiting[0];
     cpu.cancel();
     const second = cpu.maybeStart();
-    client.waiting[0]?.resolve('2g2f');
-    stale?.resolve('7g7f'); // 古い返事（すでにやめた要求）
+    client.waiting[0]?.resolve({ move: '2g2f' });
+    stale?.resolve({ move: '7g7f' }); // 古い返事（すでにやめた要求）
     await vi.advanceTimersByTimeAsync(MIN_THINK_MS);
     await second;
     expect(session.history).toEqual(['2g2f']);
@@ -106,6 +108,55 @@ describe('CpuTurn', () => {
     await started;
     expect(events).toEqual(['thinking', 'done', 'error だめだった']);
     expect(cpu.isThinking).toBe(false);
+  });
+
+  it('L3 以上は、評価値 -3000 以下が 2 手続いたら投了する（1 手目は指す）', async () => {
+    const { session, client, cpu, events } = setup('sente', true);
+    const first = cpu.maybeStart();
+    client.waiting.shift()?.resolve({ move: '7g7f', score: -3500 });
+    await vi.advanceTimersByTimeAsync(MIN_THINK_MS);
+    await first;
+    expect(session.history).toEqual(['7g7f']);
+    session.play('3c3d');
+    const second = cpu.maybeStart();
+    client.waiting.shift()?.resolve({ move: '2g2f', score: -3000 });
+    await vi.advanceTimersByTimeAsync(MIN_THINK_MS);
+    await second;
+    expect(session.history).toEqual(['7g7f', '3c3d']);
+    expect(session.status()).toEqual({ type: 'resign', winner: 'gote' });
+    expect(events.at(-1)).toBe('resign');
+  });
+
+  it('悪い手のあとに評価が戻れば、数えなおす', async () => {
+    const { session, client, cpu } = setup('sente', true);
+    for (const [move, reply, score] of [
+      ['7g7f', '3c3d', -3500],
+      ['2g2f', '8c8d', -100],
+      ['2f2e', '8d8e', -3500],
+    ] as const) {
+      const started = cpu.maybeStart();
+      client.waiting.shift()?.resolve({ move, score });
+      await vi.advanceTimersByTimeAsync(MIN_THINK_MS);
+      await started;
+      session.play(reply);
+    }
+    expect(session.isOver).toBe(false);
+    expect(session.ply).toBe(6);
+  });
+
+  it('投了しないレベル（L1・L2）は、評価値が低くても指す', async () => {
+    const { session, client, cpu } = setup('sente', false);
+    for (const [move, reply] of [
+      ['7g7f', '3c3d'],
+      ['2g2f', '8c8d'],
+    ] as const) {
+      const started = cpu.maybeStart();
+      client.waiting.shift()?.resolve({ move, score: -9999 });
+      await vi.advanceTimersByTimeAsync(MIN_THINK_MS);
+      await started;
+      session.play(reply);
+    }
+    expect(session.isOver).toBe(false);
   });
 
   it('考え中に二重に始めない', async () => {
@@ -141,11 +192,12 @@ describe('対局設定', () => {
 
   it('壊れた保存データや選べないレベルは既定値に戻す', () => {
     expect(sanitizeConfig(null)).toEqual({ mode: 'cpu', level: 1, side: 'sente' });
-    expect(sanitizeConfig({ mode: 'two', level: 5, side: 'gote' })).toEqual({
+    expect(sanitizeConfig({ mode: 'two', level: 9, side: 'gote' })).toEqual({
       mode: 'two',
       level: 1,
       side: 'gote',
     });
+    expect(sanitizeConfig({ mode: 'cpu', level: 5, side: 'gote' }).level).toBe(5);
     expect(sanitizeConfig({ mode: 'x', level: 'a', side: 3 })).toEqual({
       mode: 'cpu',
       level: 1,

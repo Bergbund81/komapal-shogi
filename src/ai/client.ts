@@ -1,5 +1,5 @@
 // 画面側から AI の Worker を使うための窓口。要求ごとに id をふり、古い返事は捨てる。
-import type { AiRequest, AiResponse, PositionSpec } from './protocol';
+import type { AiRequest, AiResponse, EngineStatus, PositionSpec } from './protocol';
 
 /** Worker の代わりに差し替えられる最小限の形（テスト用） */
 export interface WorkerLike {
@@ -16,8 +16,14 @@ export class AiCancelledError extends Error {
   }
 }
 
+/** CPU が選んだ手。score は CPU から見た評価値（L3 以上のときだけ） */
+export interface AiMove {
+  move: string;
+  score?: number;
+}
+
 interface Pending {
-  resolve: (move: string | undefined) => void;
+  resolve: (move: AiMove | undefined) => void;
   reject: (err: Error) => void;
 }
 
@@ -29,6 +35,9 @@ export class AiClient {
   private worker: WorkerLike | undefined;
   private nextId = 1;
   private readonly pending = new Map<number, Pending>();
+  private engineUrl: string | null | undefined;
+  /** エンジンの状態が変わったときに呼ばれる（「かんたんモード」の表示用） */
+  onEngineStatus: ((status: EngineStatus, reason?: string) => void) | undefined;
 
   constructor(private readonly createWorker: () => WorkerLike = defaultWorker) {}
 
@@ -42,15 +51,25 @@ export class AiClient {
       this.worker = undefined; // 次の要求でつくり直す
     };
     this.worker = worker;
+    // つくり直した Worker でも、エンジンを読み込みなおす
+    if (this.engineUrl !== undefined)
+      worker.postMessage({ type: 'warmup', engineUrl: this.engineUrl });
     return worker;
   }
 
   private receive(res: AiResponse): void {
+    if (res.type === 'engine-status') {
+      this.onEngineStatus?.(res.status, res.reason);
+      return;
+    }
     const p = this.pending.get(res.id);
     if (!p) return; // やめた要求の返事
     this.pending.delete(res.id);
-    if (res.type === 'bestmove') p.resolve(res.move);
-    else if (res.type === 'nomove') p.resolve(undefined);
+    if (res.type === 'bestmove') {
+      p.resolve(
+        res.score === undefined ? { move: res.move } : { move: res.move, score: res.score },
+      );
+    } else if (res.type === 'nomove') p.resolve(undefined);
     else p.reject(new Error(res.type === 'error' ? res.message : '未対応の要求です'));
   }
 
@@ -59,8 +78,19 @@ export class AiClient {
     this.pending.clear();
   }
 
+  /**
+   * やねうら王を裏で読み込み始める。盤を表示した後に呼ぶ。
+   * engineUrl が null ならエンジンを使わない（かんたんモード）
+   */
+  warmup(engineUrl: string | null): void {
+    if (this.engineUrl !== undefined) return;
+    this.engineUrl = engineUrl;
+    if (this.worker) this.worker.postMessage({ type: 'warmup', engineUrl });
+    else this.ensureWorker();
+  }
+
   /** 手を 1 つ選んでもらう。指せる手が無ければ undefined。stop() されたら AiCancelledError */
-  choose(level: number, spec: PositionSpec, seed?: number): Promise<string | undefined> {
+  choose(level: number, spec: PositionSpec, seed?: number): Promise<AiMove | undefined> {
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });

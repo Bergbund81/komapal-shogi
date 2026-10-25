@@ -1,29 +1,96 @@
 // 自己対局: CPU どうしを対戦させ、反則チェックと勝率を集計する。
 //   npm run selfplay -- --black 2 --white 1 --games 50 [--seed 1] [--max-plies 300]
+//   L3〜5 はやねうら王（wasm）を Node で動かす: [--threads 1] [--l5-ms 3000] [--easy]
 // レベル 0 は完全ランダム。先後は 1 局ごとに入れ替え、--black / --white は「A 側」「B 側」の意味。
+// --easy を付けると、L3〜5 はエンジンの代わりに自作αβ（かんたんモード）で指す。
+// L3 以上は画面と同じく、評価値 RESIGN_SCORE 以下が RESIGN_STREAK 手続いたら投了する。
+import { UsiEngine } from '../src/ai/engine';
+import { chooseFallbackMove, goOptionsFor, pickEngineMove } from '../src/ai/engine-ai';
 import { chooseKidsMove, chooseRandomMove } from '../src/ai/kids-ai';
-import { getLevel } from '../src/ai/levels';
+import { ENGINE_HASH_MB, getLevel, RESIGN_SCORE, RESIGN_STREAK } from '../src/ai/levels';
+import type { PositionSpec } from '../src/ai/protocol';
 import { createRng, type Rng } from '../src/ai/rng';
 import { GameSession } from '../src/game/session';
 import { legalMoves, type Color, type Position } from '../src/rules';
+import { createNodeBackend } from './engine-node';
 
-type Chooser = (pos: Position, rng: Rng) => string | undefined;
-
-function chooserFor(level: number): { name: string; choose: Chooser } {
-  if (level === 0) return { name: 'ランダム', choose: chooseRandomMove };
-  const lv = getLevel(level);
-  if (!lv?.kids || !lv.available) throw new Error(`レベル${level}は自己対局できません`);
-  const params = lv.kids;
-  return { name: `L${level} ${lv.name}`, choose: (pos, rng) => chooseKidsMove(pos, params, rng) };
+interface Chosen {
+  move: string;
+  score?: number;
 }
 
-function parseArgs(argv: string[]): {
+interface Player {
+  name: string;
+  resigns: boolean;
+  choose: (pos: Position, spec: PositionSpec, rng: Rng) => Promise<Chosen | undefined>;
+  dispose: () => void;
+}
+
+interface Args {
   a: number;
   b: number;
   games: number;
   seed: number;
   maxPlies: number;
-} {
+  threads: number;
+  l5Ms: number | undefined;
+  easy: boolean;
+}
+
+async function playerFor(level: number, args: Args): Promise<Player> {
+  const base = { dispose: () => undefined };
+  if (level === 0) {
+    return {
+      ...base,
+      name: 'ランダム',
+      resigns: false,
+      choose: (pos, _spec, rng) => {
+        const move = chooseRandomMove(pos, rng);
+        return Promise.resolve(move ? { move } : undefined);
+      },
+    };
+  }
+  const lv = getLevel(level);
+  if (!lv?.available) throw new Error(`レベル${level}は自己対局できません`);
+  const name = `L${level} ${lv.name}`;
+  if (lv.kids) {
+    const params = lv.kids;
+    return {
+      ...base,
+      name,
+      resigns: lv.resigns,
+      choose: (pos, _spec, rng) => {
+        const move = chooseKidsMove(pos, params, rng);
+        return Promise.resolve(move ? { move } : undefined);
+      },
+    };
+  }
+  if (!lv.engine) throw new Error(`レベル${level}の設定がありません`);
+  const params =
+    level === 5 && args.l5Ms !== undefined ? { ...lv.engine, byoyomiMs: args.l5Ms } : lv.engine;
+  if (args.easy) {
+    return {
+      ...base,
+      name: `${name}（かんたんモード）`,
+      resigns: lv.resigns,
+      choose: (pos, _spec, rng) => Promise.resolve(chooseFallbackMove(pos, params, rng)),
+    };
+  }
+  // 先後で別々のエンジンを使う（置換表を共有しない）
+  const engine = new UsiEngine(await createNodeBackend());
+  await engine.init({ threads: args.threads, hashMb: ENGINE_HASH_MB });
+  return {
+    name,
+    resigns: lv.resigns,
+    choose: async (pos, spec, rng) => {
+      const result = await engine.go(spec, goOptionsFor(params));
+      return pickEngineMove(pos, result, params, rng);
+    },
+    dispose: () => engine.dispose(),
+  };
+}
+
+function parseArgs(argv: string[]): Args {
   const get = (name: string, fallback: number): number => {
     const i = argv.indexOf(`--${name}`);
     const value = i >= 0 ? Number(argv[i + 1]) : fallback;
@@ -36,6 +103,9 @@ function parseArgs(argv: string[]): {
     games: get('games', 50),
     seed: get('seed', 1),
     maxPlies: get('max-plies', 300),
+    threads: get('threads', 1),
+    l5Ms: argv.includes('--l5-ms') ? get('l5-ms', 3000) : undefined,
+    easy: argv.includes('--easy'),
   };
 }
 
@@ -46,21 +116,36 @@ interface GameOutcome {
   reason: string;
 }
 
-function playGame(a: Chooser, b: Chooser, aColor: Color, rng: Rng, maxPlies: number): GameOutcome {
+async function playGame(
+  a: Player,
+  b: Player,
+  aColor: Color,
+  rng: Rng,
+  maxPlies: number,
+): Promise<GameOutcome> {
   const session = new GameSession();
   const illegal: string[] = [];
+  const losing: Record<Color, number> = { sente: 0, gote: 0 };
   while (!session.isOver && session.ply < maxPlies) {
-    const chooser = session.turn === aColor ? a : b;
-    const usi = chooser(session.position, rng);
-    if (usi === undefined) break;
-    if (!legalMoves(session.position).includes(usi)) {
-      illegal.push(`${session.sfen} ${usi}`);
+    const turn = session.turn;
+    const player = turn === aColor ? a : b;
+    const spec = { startSfen: session.startSfen, moves: [...session.history] };
+    const chosen = await player.choose(session.position, spec, rng);
+    if (chosen === undefined) break;
+    const isLosing = chosen.score !== undefined && chosen.score <= RESIGN_SCORE;
+    losing[turn] = player.resigns && isLosing ? losing[turn] + 1 : 0;
+    if (losing[turn] >= RESIGN_STREAK) {
+      session.resign(turn);
+      break;
+    }
+    if (!legalMoves(session.position).includes(chosen.move)) {
+      illegal.push(`${session.sfen} ${chosen.move}`);
       break;
     }
     try {
-      session.play(usi);
+      session.play(chosen.move);
     } catch {
-      illegal.push(`${session.sfen} ${usi}`);
+      illegal.push(`${session.sfen} ${chosen.move}`);
       break;
     }
   }
@@ -76,10 +161,10 @@ function playGame(a: Chooser, b: Chooser, aColor: Color, rng: Rng, maxPlies: num
   };
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const a = chooserFor(args.a);
-  const b = chooserFor(args.b);
+  const a = await playerFor(args.a, args);
+  const b = await playerFor(args.b, args);
   const rng = createRng(args.seed);
   const tally = { a: 0, b: 0, draw: 0 };
   const reasons = new Map<string, number>();
@@ -89,13 +174,19 @@ function main(): void {
 
   for (let i = 0; i < args.games; i++) {
     const aColor: Color = i % 2 === 0 ? 'sente' : 'gote';
-    const out = playGame(a.choose, b.choose, aColor, rng, args.maxPlies);
+    const out = await playGame(a, b, aColor, rng, args.maxPlies);
     tally[out.winner]++;
     totalPlies += out.plies;
     illegalCount += out.illegal.length;
     reasons.set(out.reason, (reasons.get(out.reason) ?? 0) + 1);
     for (const line of out.illegal) console.error(`反則: ${line}`);
+    const who = out.winner === 'draw' ? '引き分け' : out.winner === 'a' ? 'A' : 'B';
+    console.error(
+      `  ${i + 1}局目: A=${aColor === 'sente' ? '先手' : '後手'} → ${who}（${out.reason}・${out.plies}手）`,
+    );
   }
+  a.dispose();
+  b.dispose();
 
   const n = args.games;
   const pct = (x: number): string => `${((x / n) * 100).toFixed(1)}%`;
@@ -116,6 +207,8 @@ function main(): void {
     `  反則 ${illegalCount}  かかった時間 ${((Date.now() - started) / 1000).toFixed(1)}秒`,
   );
   if (illegalCount > 0) process.exitCode = 1;
+  // やねうら王の Worker スレッドが残ってもプロセスを終わらせる
+  process.exit();
 }
 
-main();
+void main();

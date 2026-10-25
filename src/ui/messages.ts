@@ -33,6 +33,8 @@ export const COLOR_NAMES: Record<Color, string> = { sente: '先手', gote: '後�
 export type SideNames = Readonly<Record<Color, string>>;
 
 export const THINKING_MESSAGE = 'かんがえちゅう…';
+/** やねうら王が使えない端末で、自作αβに切り替えたときのお知らせ */
+export const EASY_MODE_MESSAGE = 'かんたんモードで動いています';
 export const CPU_ERROR_MESSAGE =
   'CPUがうまくうごかなかったよ。「まった」でやりなおすか、あたらしくはじめてね';
 

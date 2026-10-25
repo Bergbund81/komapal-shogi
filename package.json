@@ -6,9 +6,12 @@
   "license": "GPL-3.0-or-later",
   "type": "module",
   "scripts": {
+    "predev": "node tools/copy-assets.mjs",
     "dev": "vite",
+    "prebuild": "node tools/copy-assets.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "pretest": "node tools/copy-assets.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
@@ -18,11 +21,13 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@mizarjp/yaneuraou.material9": "7.6.3-alpha.0",
     "shogiops": "^0.22.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.19.2",
+    "coi-serviceworker": "^0.1.7",
     "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.10",

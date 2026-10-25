@@ -2,7 +2,9 @@
 import { describe, expect, it } from 'vitest';
 import type { GameResult } from '../src/game/session';
 import type { IllegalReason } from '../src/rules';
+import { LEVELS } from '../src/ai/levels';
 import { segments } from '../src/ui/furigana';
+import * as messages from '../src/ui/messages';
 import { ILLEGAL_MESSAGES, resultText } from '../src/ui/messages';
 import {
   ALL_ROLES,
@@ -36,6 +38,23 @@ describe('ふりがな', () => {
       .map((s) => s.text)
       .join('');
     expect(joined).toBe(text);
+  });
+
+  it('レベルの名前・説明と、決まった文言の漢字には全部ふりがながつく', () => {
+    const texts = [
+      ...LEVELS.flatMap((lv) => [lv.name, lv.description]),
+      ...Object.values(messages as Record<string, unknown>).filter(
+        (v): v is string => typeof v === 'string',
+      ),
+      ...Object.values(ILLEGAL_MESSAGES),
+    ];
+    for (const text of texts) {
+      const bare = segments(text)
+        .filter((s) => !s.reading)
+        .map((s) => s.text)
+        .join('');
+      expect(bare, text).not.toMatch(/[一-鿿]/);
+    }
   });
 });
 
