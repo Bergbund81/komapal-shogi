@@ -39,7 +39,8 @@ export const KANJI: Record<string, string> = {
   dragon: '龍',
 };
 
-export const HIRAGANA: Record<string, string> = {
+/** 駒の字のよみ（ふりがな）。玉は後手の駒だけなので king は pieceReading で分ける */
+export const READING: Record<string, string> = {
   pawn: 'ふ',
   lance: 'きょう',
   knight: 'けい',
@@ -49,12 +50,24 @@ export const HIRAGANA: Record<string, string> = {
   rook: 'ひ',
   king: 'おう',
   tokin: 'と',
-  promotedlance: 'きょう',
-  promotedknight: 'けい',
-  promotedsilver: 'ぎん',
+  promotedlance: 'なりきょう',
+  promotedknight: 'なりけい',
+  promotedsilver: 'なりぎん',
   horse: 'うま',
   dragon: 'りゅう',
 };
+
+/** ひらがな表示の駒の字。成駒は赤字で区別するので「なり」は付けない */
+export const HIRAGANA: Record<string, string> = {
+  ...READING,
+  promotedlance: 'きょう',
+  promotedknight: 'けい',
+  promotedsilver: 'ぎん',
+};
+
+/** 駒の表示: かんじ / かんじ＋ふりがな / ひらがな */
+export type PieceStyle = 'kanji' | 'kanjiRuby' | 'hiragana';
+export const PIECE_STYLES: readonly PieceStyle[] = ['kanji', 'kanjiRuby', 'hiragana'];
 
 const PROMOTED = new Set<string>([
   'tokin',
@@ -95,8 +108,18 @@ export function promotedRole(role: Role): Role | undefined {
   return map[role];
 }
 
-export function pieceLabel(role: Role, hiragana: boolean): string {
-  return (hiragana ? HIRAGANA : KANJI)[role] ?? '?';
+/** 後手の王は「玉」と書く（将棋の慣習） */
+export function pieceKanji(role: Role, color: Color): string {
+  return role === 'king' && color === 'gote' ? '玉' : (KANJI[role] ?? '?');
+}
+
+export function pieceReading(role: Role, color: Color): string {
+  return role === 'king' && color === 'gote' ? 'ぎょく' : (READING[role] ?? '');
+}
+
+export function pieceLabel(role: Role, color: Color, style: PieceStyle): string {
+  if (style !== 'hiragana') return pieceKanji(role, color);
+  return role === 'king' && color === 'gote' ? 'ぎょく' : (HIRAGANA[role] ?? '?');
 }
 
 /** 動きガイドの点。dx,dy は先手から見た向き（dy=-1 が前）。step=1マス, slide=どこまでも, jump=とびこえ */
@@ -160,7 +183,7 @@ export function svgEl<K extends keyof SVGElementTagNameMap>(
 
 export interface PieceOptions {
   guide: boolean;
-  hiragana: boolean;
+  style: PieceStyle;
   /** 盤を反対側から見ているとき true（先手の駒が上下さかさまに見える） */
   flipped?: boolean;
 }
@@ -168,16 +191,26 @@ export interface PieceOptions {
 // 駒の形（中心が原点、幅およそ 80、高さおよそ 90）
 const SHAPE = '0,-46 32,-30 40,42 -40,42 -32,-30';
 
+/**
+ * 動きガイドの点の位置。字（中央）とふりがな（下）をよけて、駒の縁ぞいに並べる。
+ * 前後は駒の先とおしりの近く、左右は中ほど、斜めは四すみ。
+ */
+function guidePoint(m: GuideMark): [number, number] {
+  if (m.kind === 'jump') return [m.dx * 16, -33];
+  const x = m.dx * 29;
+  if (m.dx === 0) return [0, m.dy < 0 ? -36 : 36];
+  return [x, m.dy < 0 ? -30 : m.dy > 0 ? 37 : -8];
+}
+
 function drawGuide(g: SVGGElement, role: Role): void {
   for (const m of MOVE_GUIDE[role] ?? []) {
-    const x = m.dx * (m.kind === 'jump' ? 15 : 27);
-    const y = m.dy * (m.kind === 'jump' ? 13 : 29) + 3;
+    const [x, y] = guidePoint(m);
     if (m.kind === 'slide') {
       // どこまでも進める向きは、その向きの小さな三角
       const a = Math.atan2(m.dy, m.dx);
-      const tip = [x + Math.cos(a) * 7, y + Math.sin(a) * 7];
-      const l = [x + Math.cos(a + 2.4) * 6, y + Math.sin(a + 2.4) * 6];
-      const r = [x + Math.cos(a - 2.4) * 6, y + Math.sin(a - 2.4) * 6];
+      const tip = [x + Math.cos(a) * 6.5, y + Math.sin(a) * 6.5];
+      const l = [x + Math.cos(a + 2.4) * 5.5, y + Math.sin(a + 2.4) * 5.5];
+      const r = [x + Math.cos(a - 2.4) * 5.5, y + Math.sin(a - 2.4) * 5.5];
       g.append(
         svgEl('polygon', {
           points: `${tip.join(',')} ${l.join(',')} ${r.join(',')}`,
@@ -185,30 +218,59 @@ function drawGuide(g: SVGGElement, role: Role): void {
         }),
       );
     } else {
-      g.append(svgEl('circle', { cx: x, cy: y, r: 4.5, class: `guide guide-${m.kind}` }));
+      g.append(svgEl('circle', { cx: x, cy: y, r: 4, class: `guide guide-${m.kind}` }));
     }
   }
 }
 
-function drawLabel(g: SVGGElement, role: Role, hiragana: boolean): void {
-  const label = pieceLabel(role, hiragana);
+function textEl(text: string, attrs: Record<string, string | number>): SVGTextElement {
+  const t = svgEl('text', {
+    x: 0,
+    'text-anchor': 'middle',
+    'dominant-baseline': 'central',
+    ...attrs,
+  });
+  t.textContent = text;
+  return t;
+}
+
+/** ひらがな表示: 1 文字ずつ縦にならべる */
+function drawHiragana(g: SVGGElement, label: string, cls: string): void {
   const chars = [...label];
-  const cls = isPromotedRole(role) ? 'piece-text promoted' : 'piece-text';
   const size = chars.length === 1 ? 42 : chars.length === 2 ? 30 : 24;
   const lineHeight = size * 0.98;
   const top = 4 - ((chars.length - 1) * lineHeight) / 2;
-  chars.forEach((ch, i) => {
-    const t = svgEl('text', {
-      x: 0,
-      y: top + i * lineHeight,
+  chars.forEach((ch, i) =>
+    g.append(textEl(ch, { y: top + i * lineHeight, 'font-size': size, class: cls })),
+  );
+}
+
+function drawLabel(g: SVGGElement, role: Role, color: Color, style: PieceStyle): void {
+  const promoted = isPromotedRole(role);
+  const cls = promoted ? 'piece-text promoted' : 'piece-text';
+  if (style === 'hiragana') {
+    drawHiragana(g, pieceLabel(role, color, style), cls);
+    return;
+  }
+  const kanji = pieceKanji(role, color);
+  if (style === 'kanji') {
+    g.append(textEl(kanji, { y: 3, 'font-size': 44, class: cls }));
+    return;
+  }
+  // かんじ＋ふりがな: 字を少し上に、ふりがなを下に小さく（長い読みは幅を縮める）
+  g.append(textEl(kanji, { y: -11, 'font-size': 34, class: cls }));
+  const reading = pieceReading(role, color);
+  const n = [...reading].length;
+  const size = n <= 2 ? 24 : n === 3 ? 22 : n === 4 ? 17 : 14;
+  g.append(
+    textEl(reading, {
+      y: 23,
       'font-size': size,
-      class: cls,
-      'text-anchor': 'middle',
-      'dominant-baseline': 'central',
-    });
-    t.textContent = ch;
-    g.append(t);
-  });
+      textLength: Math.min(n * size, 70),
+      lengthAdjust: 'spacingAndGlyphs',
+      class: promoted ? 'piece-ruby promoted' : 'piece-ruby',
+    }),
+  );
 }
 
 /** 駒 1 枚の絵（原点が中心）。画面の下側の人から見て、あいての駒は 180° 回転 */
@@ -218,7 +280,7 @@ export function pieceGroup(role: Role, color: Color, opts: PieceOptions): SVGGEl
   const body = svgEl('g', upsideDown ? { transform: 'rotate(180)' } : {});
   body.append(svgEl('polygon', { points: SHAPE, class: 'piece-body' }));
   if (opts.guide) drawGuide(body, role);
-  drawLabel(body, role, opts.hiragana);
+  drawLabel(body, role, color, opts.style);
   g.append(body);
   return g;
 }

@@ -109,3 +109,50 @@
   display: block;
   color: #6f5d3b;
 }
+
+.setting-group {
+  margin: 0;
+  padding: 6px 10px 10px;
+  border-radius: 12px;
+  background: #fffaf0;
+  border: 1px solid #e3d3aa;
+}
+
+.setting-group legend {
+  padding: 0 6px;
+  font-weight: bold;
+}
+
+.style-choices {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.style-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 6px 2px;
+  border-radius: 10px;
+  text-align: center;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.style-choice:has(input:checked) {
+  background: #fff1b8;
+  outline: 2px solid var(--accent);
+}
+
+.style-choice input {
+  width: 24px;
+  height: 24px;
+}
+
+.style-choice .piece-svg {
+  width: 56px;
+  height: 62px;
+}

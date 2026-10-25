@@ -1,8 +1,8 @@
 // ダイアログ（なる/ならない、確認、設定、終局）。<dialog> を使うので Esc で閉じられる。
 import type { Role } from '../rules';
 import { ruby } from './furigana';
-import { pieceSvg, promotedRole, type PieceOptions } from './pieces';
-import { getSettings, updateSettings, type Settings } from './settings';
+import { pieceSvg, promotedRole, type PieceOptions, type PieceStyle } from './pieces';
+import { getSettings, updateSettings } from './settings';
 
 /** ダイアログを開いて、閉じるときの値を返す。Esc・外側タップなら undefined */
 function open<T>(
@@ -113,33 +113,74 @@ export async function resultDialog(title: string, detail: string): Promise<boole
   return answer === true;
 }
 
-const SETTING_ITEMS: ReadonlyArray<{ key: keyof Settings; label: string; hint: string }> = [
+const SWITCHES: ReadonlyArray<{ key: 'guide' | 'furigana'; label: string; hint: string }> = [
   { key: 'guide', label: '駒のうごきの点', hint: '駒に、うごける方向の点をだすよ' },
   { key: 'furigana', label: 'ふりがな', hint: '漢字によみかたをつけるよ' },
-  { key: 'hiraganaPieces', label: '駒をひらがなにする', hint: '「歩」を「ふ」のようにするよ' },
 ];
+
+const PIECE_STYLE_CHOICES: ReadonlyArray<{ style: PieceStyle; label: string }> = [
+  { style: 'kanji', label: 'かんじ' },
+  { style: 'kanjiRuby', label: 'かんじ＋ふりがな' },
+  { style: 'hiragana', label: 'ひらがな' },
+];
+
+function labeled(title: string, hint?: string): HTMLElement {
+  const text = document.createElement('span');
+  const name = document.createElement('strong');
+  name.append(ruby(title));
+  text.append(name);
+  if (hint) {
+    const small = document.createElement('small');
+    small.append(ruby(hint));
+    text.append(small);
+  }
+  return text;
+}
+
+function switchItem(item: (typeof SWITCHES)[number]): HTMLElement {
+  const label = document.createElement('label');
+  label.className = 'setting-item';
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.checked = getSettings()[item.key];
+  input.addEventListener('change', () => updateSettings({ [item.key]: input.checked }));
+  label.append(input, labeled(item.label, item.hint));
+  return label;
+}
+
+/** 駒の表示を 3 つから選ぶ。見本の駒つき */
+function pieceStyleGroup(): HTMLElement {
+  const group = document.createElement('fieldset');
+  group.className = 'setting-group';
+  const legend = document.createElement('legend');
+  legend.append(ruby('駒のひょうじ'));
+  group.append(legend);
+  const choices = document.createElement('div');
+  choices.className = 'style-choices';
+  for (const choice of PIECE_STYLE_CHOICES) {
+    const label = document.createElement('label');
+    label.className = 'style-choice';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'piece-style';
+    input.checked = getSettings().pieceStyle === choice.style;
+    input.addEventListener('change', () => updateSettings({ pieceStyle: choice.style }));
+    const sample = pieceSvg('silver', 'sente', { guide: false, style: choice.style });
+    const name = document.createElement('span');
+    name.append(ruby(choice.label));
+    label.append(input, sample, name);
+    choices.append(label);
+  }
+  group.append(choices);
+  return group;
+}
 
 /** せってい。スイッチを触るとすぐ反映される */
 export async function settingsDialog(): Promise<void> {
   await open<boolean>((close) => {
     const list = document.createElement('div');
     list.className = 'settings-list';
-    for (const item of SETTING_ITEMS) {
-      const label = document.createElement('label');
-      label.className = 'setting-item';
-      const input = document.createElement('input');
-      input.type = 'checkbox';
-      input.checked = getSettings()[item.key];
-      input.addEventListener('change', () => updateSettings({ [item.key]: input.checked }));
-      const text = document.createElement('span');
-      const name = document.createElement('strong');
-      name.append(ruby(item.label));
-      const hint = document.createElement('small');
-      hint.append(ruby(item.hint));
-      text.append(name, hint);
-      label.append(input, text);
-      list.append(label);
-    }
+    list.append(...SWITCHES.map(switchItem), pieceStyleGroup());
     return [heading('せってい'), list, row(button('とじる', () => close(true), 'primary'))];
   });
 }

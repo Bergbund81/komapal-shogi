@@ -91,7 +91,7 @@ export function startApp(root: HTMLElement): void {
   // ---- 描画 ----
   const options = () => ({
     guide: getSettings().guide,
-    hiragana: getSettings().hiraganaPieces,
+    style: getSettings().pieceStyle,
     flipped,
   });
 

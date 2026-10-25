@@ -1,7 +1,7 @@
 // 9×9 の盤（SVG）。見た目だけを担当し、どの升をタップしたかを通知する。
 import { makeSquareName, parseSquareName } from 'shogiops/util';
 import type { Color, Position } from '../rules';
-import { pieceGroup, svgEl } from './pieces';
+import { pieceGroup, svgEl, type PieceStyle } from './pieces';
 
 const CELL = 100;
 const MARGIN_LEFT = 10;
@@ -25,7 +25,7 @@ export interface BoardState {
   /** 王手されている王の升 */
   checkSquare?: string | undefined;
   guide: boolean;
-  hiragana: boolean;
+  style: PieceStyle;
 }
 
 /** 画面の列・行 → USI の升名。"7g" = 7筋・g段（一番上が a 段、左端が 9 筋） */

@@ -8,8 +8,12 @@ import {
   ALL_ROLES,
   HIRAGANA,
   KANJI,
+  READING,
   MOVE_GUIDE,
   isPromotedRole,
+  pieceKanji,
+  pieceLabel,
+  pieceReading,
   promotedRole,
   unpromotedRole,
 } from '../src/ui/pieces';
@@ -86,6 +90,7 @@ describe('駒の絵のデータ', () => {
     for (const role of ALL_ROLES) {
       expect(KANJI[role], role).toBeTruthy();
       expect(HIRAGANA[role], role).toBeTruthy();
+      expect(READING[role], role).toBeTruthy();
       expect(MOVE_GUIDE[role]?.length, role).toBeGreaterThan(0);
     }
   });
@@ -101,5 +106,43 @@ describe('駒の絵のデータ', () => {
     }
     expect(promotedRole('gold')).toBeUndefined();
     expect(promotedRole('king')).toBeUndefined();
+  });
+});
+
+describe('駒の字とふりがな', () => {
+  it('指定どおりの読みになる', () => {
+    const expected: Record<string, string> = {
+      pawn: 'ふ',
+      lance: 'きょう',
+      knight: 'けい',
+      silver: 'ぎん',
+      gold: 'きん',
+      bishop: 'かく',
+      rook: 'ひ',
+      king: 'おう',
+      tokin: 'と',
+      promotedlance: 'なりきょう',
+      promotedknight: 'なりけい',
+      promotedsilver: 'なりぎん',
+      horse: 'うま',
+      dragon: 'りゅう',
+    };
+    for (const [role, reading] of Object.entries(expected)) {
+      expect(pieceReading(role as never, 'sente'), role).toBe(reading);
+    }
+  });
+
+  it('後手の王は「玉」（読みは ぎょく）、先手は「王」', () => {
+    expect(pieceKanji('king', 'sente')).toBe('王');
+    expect(pieceKanji('king', 'gote')).toBe('玉');
+    expect(pieceReading('king', 'gote')).toBe('ぎょく');
+    expect(pieceLabel('king', 'gote', 'hiragana')).toBe('ぎょく');
+    expect(pieceLabel('king', 'sente', 'hiragana')).toBe('おう');
+    expect(pieceLabel('king', 'gote', 'kanjiRuby')).toBe('玉');
+  });
+
+  it('ひらがな表示の成駒は、成る前と同じ字（赤字で区別）', () => {
+    expect(pieceLabel('promotedlance', 'sente', 'hiragana')).toBe('きょう');
+    expect(pieceLabel('horse', 'sente', 'hiragana')).toBe('うま');
   });
 });
