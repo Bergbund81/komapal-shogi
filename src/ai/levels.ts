@@ -35,7 +35,7 @@ export const LEVELS: readonly LevelConfig[] = [
     description: 'ルールをおぼえたばかりの子でも勝てるよ',
     kind: 'kids',
     available: true,
-    kids: { mateInOneProb: 0.3, freePieceTakeProb: 0.1, lookahead: false, noise: 0 },
+    kids: { mateInOneProb: 0.3, freePieceTakeProb: 0.5, lookahead: false, noise: 0 },
   },
   {
     id: 2,
