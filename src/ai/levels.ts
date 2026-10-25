@@ -8,6 +8,15 @@ export interface KidsParams {
   mateInOneProb: number;
   /** タダで取れる駒があるとき、実際に取りにいく確率（L1 だけが使う） */
   freePieceTakeProb: number;
+  /**
+   * L1: 指した駒がタダで取られる手を避ける確率（小駒・金銀など）。0 なら気にせず指す
+   * （避けようとするだけで、ほかに手があるときだけ。毎回ではないので「うっかり」が残る）
+   */
+  avoidHangProb: number;
+  /** L1: 飛車・角（龍・馬もふくむ）がタダで取られる手を避ける確率。小さいほど大駒をうっかりおく */
+  avoidBigHangProb: number;
+  /** L1: 王手されていないのに、王を前（あいての陣のほう）へ出す手を避ける確率 */
+  avoidKingAdvanceProb: number;
   /** true なら全合法手を 1 手読みして駒得で選ぶ（L2）。false なら合法手からほぼランダム（L1） */
   lookahead: boolean;
   /** lookahead のとき評価に足すゆらぎの大きさ（点。歩 = 100）。大きいほどうっかりが増える */
@@ -35,7 +44,15 @@ export const LEVELS: readonly LevelConfig[] = [
     description: 'ルールをおぼえたばかりの子でも勝てるよ',
     kind: 'kids',
     available: true,
-    kids: { mateInOneProb: 0.3, freePieceTakeProb: 0.5, lookahead: false, noise: 0 },
+    kids: {
+      mateInOneProb: 0.15,
+      freePieceTakeProb: 0.35,
+      avoidHangProb: 0.3,
+      avoidBigHangProb: 0.1,
+      avoidKingAdvanceProb: 0.8,
+      lookahead: false,
+      noise: 0,
+    },
   },
   {
     id: 2,
@@ -44,7 +61,15 @@ export const LEVELS: readonly LevelConfig[] = [
     description: '勝ったり負けたり。駒をとるのがじょうず',
     kind: 'kids',
     available: true,
-    kids: { mateInOneProb: 1, freePieceTakeProb: 1, lookahead: true, noise: 250 },
+    kids: {
+      mateInOneProb: 1,
+      freePieceTakeProb: 1,
+      avoidHangProb: 0,
+      avoidBigHangProb: 0,
+      avoidKingAdvanceProb: 0,
+      lookahead: true,
+      noise: 250,
+    },
   },
   {
     id: 3,

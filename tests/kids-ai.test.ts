@@ -14,6 +14,13 @@ import crosscheck from './fixtures/crosscheck-500.json';
 
 const L1 = getLevel(1)?.kids as KidsParams;
 const L2 = getLevel(2)?.kids as KidsParams;
+/** 詰み・避ける動きを止めて、調べたい動きだけを見る */
+const NO_AVOIDING = {
+  mateInOneProb: 0,
+  avoidHangProb: 0,
+  avoidBigHangProb: 0,
+  avoidKingAdvanceProb: 0,
+};
 
 interface Fixture {
   positions: Array<{ sfen: string }>;
@@ -30,7 +37,14 @@ describe('どのレベルも合法手だけを指す', () => {
   it.each(sfens.slice(0, 200).map((s, i) => [i, s] as const))('局面 %i', (_, sfen) => {
     const pos = parseSfen(sfen, false);
     const legal = legalMoves(pos);
-    for (const params of [L1, L2]) {
+    // 避ける確率をすべて 1 にしても、合法手の中から必ず選ぶ
+    const avoidAll: KidsParams = {
+      ...L1,
+      avoidHangProb: 1,
+      avoidBigHangProb: 1,
+      avoidKingAdvanceProb: 1,
+    };
+    for (const params of [L1, L2, avoidAll]) {
       const move = chooseKidsMove(pos, params, rng);
       if (legal.length === 0) expect(move).toBeUndefined();
       else expect(legal).toContain(move);
@@ -55,7 +69,7 @@ describe('1 手詰め', () => {
     }
   });
 
-  it('L1 は気づくのが 3 割ほどで、ふだんは別の手も指す', () => {
+  it('L1 は levels.ts の確率ほどしか気づかず、ふだんは別の手も指す', () => {
     const mates = new Set(mateInOneMoves(pos, legal));
     const rng = createRng(7);
     let found = 0;
@@ -63,8 +77,10 @@ describe('1 手詰め', () => {
     for (let i = 0; i < trials; i++) {
       if (mates.has(chooseKidsMove(pos, L1, rng) ?? '')) found++;
     }
-    expect(found / trials).toBeGreaterThan(0.2);
-    expect(found / trials).toBeLessThan(0.5);
+    // 気づく分 + ランダムに選んだ手がたまたま詰めの手になる分
+    expect(found / trials).toBeGreaterThan(L1.mateInOneProb * 0.8);
+    expect(found / trials).toBeLessThan(L1.mateInOneProb + 0.3);
+    expect(found).toBeLessThan(trials);
   });
 });
 
@@ -88,7 +104,7 @@ describe('タダ取り', () => {
     let taken = 0;
     for (let i = 0; i < trials; i++) {
       if (
-        chooseKidsMove(pos, { ...L1, mateInOneProb: 0, freePieceTakeProb: 0.5 }, rng)?.startsWith(
+        chooseKidsMove(pos, { ...L1, ...NO_AVOIDING, freePieceTakeProb: 0.5 }, rng)?.startsWith(
           '5e5a',
         )
       ) {
@@ -98,6 +114,44 @@ describe('タダ取り', () => {
     // 0.5 + ランダムに選んだ手がたまたま取りの手になる分
     expect(taken / trials).toBeGreaterThan(0.45);
     expect(taken / trials).toBeLessThan(0.6);
+  });
+});
+
+describe('L1 のうっかり', () => {
+  const trials = 300;
+  /** 後手の歩 5c が、5d に出た先手の飛車をタダで取れる形 */
+  const hangPos = parseSfen('8k/9/4p4/9/4R4/9/9/9/K8 b - 1');
+  const countMove = (pos: ReturnType<typeof parseSfen>, params: KidsParams, move: string) => {
+    const rng = createRng(11);
+    let n = 0;
+    for (let i = 0; i < trials; i++) if (chooseKidsMove(pos, params, rng) === move) n++;
+    return n;
+  };
+  const base: KidsParams = { ...L1, ...NO_AVOIDING, freePieceTakeProb: 0 };
+
+  it('タダで取られる所へ飛車を出す手は、避ける確率 1 なら指さない', () => {
+    const careful = { ...base, avoidHangProb: 1, avoidBigHangProb: 1 };
+    expect(countMove(hangPos, careful, '5e5d')).toBe(0);
+  });
+
+  it('避ける確率 0 なら、ときどき飛車をうっかりおく', () => {
+    expect(countMove(hangPos, base, '5e5d')).toBeGreaterThan(0);
+  });
+
+  it('大駒用の確率が小さければ、大駒はうっかりおく', () => {
+    const careless = { ...base, avoidHangProb: 1, avoidBigHangProb: 0 };
+    expect(countMove(hangPos, careless, '5e5d')).toBeGreaterThan(0);
+  });
+
+  it('王手されていないときの王の前進は、避ける確率 1 なら指さない', () => {
+    const kingPos = parseSfen('8k/9/9/9/4K4/9/9/9/9 b - 1');
+    const forward = ['5e5d', '5e4d', '5e6d'];
+    const careful = { ...base, avoidKingAdvanceProb: 1 };
+    const rng = createRng(5);
+    for (let i = 0; i < trials; i++) {
+      expect(forward).not.toContain(chooseKidsMove(kingPos, careful, rng));
+    }
+    expect(forward.some((m) => countMove(kingPos, base, m) > 0)).toBe(true);
   });
 });
 

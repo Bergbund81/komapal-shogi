@@ -1,8 +1,16 @@
 // レベル1・2の「こども AI」。必ず legalMoves() の中から手を選ぶ。
-// L1: ほぼランダム（タダ取りと 1 手詰めは、決まった確率でだけ気づく）
+// L1: ほぼランダム（タダ取りと 1 手詰めは、決まった確率でだけ気づく。
+//     タダで取られる手や、意味のない王の前進は、ときどきだけ避ける）
 // L2: 全合法手を 1 手読みして駒得で選ぶ（ゆらぎつき・1 手詰めは見逃さない）
-import { isDrop } from 'shogiops/util';
-import { isCheckmate, legalMoves, parseMove, playUnchecked, type Position } from '../rules';
+import { isDrop, parseSquareName, squareRank } from 'shogiops/util';
+import {
+  isCheckmate,
+  legalMoves,
+  parseMove,
+  playUnchecked,
+  type Position,
+  type Role,
+} from '../rules';
 import { materialScore, pieceValue } from './eval';
 import type { KidsParams } from './levels';
 import { pick, type Rng } from './rng';
@@ -61,6 +69,52 @@ function lookaheadMove(pos: Position, moves: readonly string[], noise: number, r
   return best;
 }
 
+const BIG_ROLES: readonly Role[] = ['rook', 'bishop', 'dragon', 'horse'];
+
+/** 指した駒が、あいてにタダで取られる（取り返せない）手か。next は指した後の局面 */
+function leavesPieceHanging(next: Position, to: string): boolean {
+  for (const capture of legalMoves(next)) {
+    if (capture[1] === '*' || capture.slice(2, 4) !== to) continue;
+    const taken = after(next, capture);
+    if (taken && !legalMoves(taken).some((reply) => reply.slice(2, 4) === to)) return true;
+  }
+  return false;
+}
+
+/** 王手でも取る手でもないのに、王が前（あいての陣のほう）へ出る手か */
+function isAimlessKingAdvance(pos: Position, usi: string): boolean {
+  const md = parseMove(usi);
+  if (!md || isDrop(md) || pos.isCheck()) return false;
+  if (pos.board.pieceAt(md.from)?.role !== 'king' || pos.board.hasPieceAt(md.to)) return false;
+  const dRank = squareRank(md.to) - squareRank(md.from);
+  return pos.turn === 'sente' ? dRank < 0 : dRank > 0;
+}
+
+/** ほぼランダム。避ける手に当たっても、確率でそのまま指す（ほかの手が無ければ必ず指す） */
+function weakRandomMove(pos: Position, moves: readonly string[], p: KidsParams, rng: Rng): string {
+  const order = [...moves];
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [order[i], order[j]] = [order[j] as string, order[i] as string];
+  }
+  for (const usi of order) {
+    if (p.avoidKingAdvanceProb > 0 && isAimlessKingAdvance(pos, usi)) {
+      if (rng() < p.avoidKingAdvanceProb) continue;
+    }
+    if (p.avoidHangProb > 0 || p.avoidBigHangProb > 0) {
+      const next = after(pos, usi);
+      const to = usi.slice(2, 4);
+      const role = next?.board.pieceAt(parseSquareName(to) ?? -1)?.role;
+      if (next && role && leavesPieceHanging(next, to)) {
+        const avoid = BIG_ROLES.includes(role) ? p.avoidBigHangProb : p.avoidHangProb;
+        if (rng() < avoid) continue;
+      }
+    }
+    return usi;
+  }
+  return order[0] ?? '';
+}
+
 /** 手番側の手を 1 つ選ぶ。合法手が無ければ undefined */
 export function chooseKidsMove(pos: Position, params: KidsParams, rng: Rng): string | undefined {
   const moves = legalMoves(pos);
@@ -85,7 +139,7 @@ export function chooseKidsMove(pos: Position, params: KidsParams, rng: Rng): str
     }
     if (bestFree) return bestFree;
   }
-  return pick(moves, rng);
+  return weakRandomMove(pos, moves, params, rng);
 }
 
 /** 自己対局用の「ランダム」相手 */
