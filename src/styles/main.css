@@ -1,0 +1,6 @@
+/* コマパル 将棋の画面。外部フォント・外部 CDN は使わない（システムのフォントだけ）。
+   後に読むファイルが優先されるので、画面の広さによる配置（layout.css）は最後。 */
+@import './base.css';
+@import './board.css';
+@import './ui.css';
+@import './layout.css';

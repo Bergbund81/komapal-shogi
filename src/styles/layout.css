@@ -1,0 +1,184 @@
+/* ---- 盤まわりの配置（縦長が基本）---- */
+.layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.board-wrap {
+  width: var(--board-size);
+  min-width: min(100%, 20rem);
+  justify-self: center;
+}
+
+.hand-top {
+  justify-self: start;
+}
+
+.hand-bottom {
+  justify-self: end;
+}
+
+.hand-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 4.6rem;
+  max-width: 100%;
+}
+
+.hand-bottom .hand-name {
+  text-align: right;
+}
+
+.hand-name {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: normal;
+}
+
+.hand-slot.active .hand-name {
+  font-weight: bold;
+  color: #8a4b00;
+}
+
+.hand-pieces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 52px;
+  padding: 3px;
+  border-radius: 10px;
+  background: #ecdcb5;
+}
+
+.hand-slot:not(.active) .hand-pieces {
+  opacity: 0.7;
+}
+
+.hand-piece {
+  position: relative;
+  width: 46px;
+  height: 52px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.hand-piece.selected {
+  border-color: var(--accent);
+  background: #fff3a8;
+}
+
+.hand-count {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 10px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: bold;
+  line-height: 20px;
+  text-align: center;
+}
+
+.history {
+  min-width: 0;
+}
+
+.history-title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.history-list {
+  margin: 0;
+  padding: 4px 8px;
+  max-height: 7.5rem;
+  overflow-y: auto;
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 12px;
+  border-radius: 10px;
+  background: #fffaf0;
+  border: 1px solid #e3d3aa;
+  line-height: 1.6;
+}
+
+.history-row {
+  display: flex;
+  gap: 8px;
+}
+
+.history-no {
+  min-width: 2em;
+  color: #8a7a5a;
+  text-align: right;
+}
+
+.history-row.current {
+  font-weight: bold;
+  background: #fff1b8;
+  border-radius: 6px;
+}
+
+/* ---- ひろい画面 ---- */
+@media (min-width: 520px) {
+  .controls {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+/* 横長（PC・タブレット横）: 持ち駒 | 盤 | 棋譜 */
+@media (min-aspect-ratio: 1/1) and (min-width: 700px) {
+  :root {
+    --board-size: min(calc(100vw - 30rem), calc(100dvh - 11rem));
+  }
+
+  .layout {
+    grid-template-columns: minmax(9rem, 1fr) auto minmax(11rem, 1fr);
+    grid-template-rows: 1fr 1fr;
+    grid-template-areas:
+      'top board hist'
+      'bottom board hist';
+    gap: 12px;
+  }
+
+  .hand-top {
+    grid-area: top;
+    align-self: start;
+    justify-self: stretch;
+  }
+
+  .hand-bottom {
+    grid-area: bottom;
+    align-self: end;
+    justify-self: stretch;
+  }
+
+  .hand-bottom .hand-name {
+    text-align: left;
+  }
+
+  .board-wrap {
+    grid-area: board;
+  }
+
+  .history {
+    grid-area: hist;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .history-list {
+    grid-template-columns: 1fr;
+    max-height: calc(var(--board-size) - 1rem);
+  }
+}

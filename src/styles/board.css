@@ -1,0 +1,112 @@
+/* ---- 盤と駒（SVG）---- */
+.board {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.board-wood {
+  fill: var(--wood);
+  stroke: var(--wood-line);
+  stroke-width: 4;
+}
+
+.board-line {
+  stroke: var(--wood-line);
+  stroke-width: 2;
+}
+
+.board-star {
+  fill: var(--wood-line);
+}
+
+.board-coord {
+  fill: var(--ink);
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.board-tap {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.mark-last {
+  fill: #7cc0ff;
+  opacity: 0.4;
+}
+
+.mark-selected {
+  fill: #ffe14d;
+  stroke: #d49100;
+  stroke-width: 4;
+  opacity: 0.85;
+}
+
+.mark-target {
+  fill: #fff27a;
+  stroke: #e69a00;
+  stroke-width: 4;
+  opacity: 0.75;
+  animation: glow 1.2s ease-in-out infinite alternate;
+}
+
+.mark-capture {
+  fill: #ff9d7a;
+  stroke: #d1451e;
+}
+
+.mark-check {
+  fill: #ff3b30;
+  animation: blink 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes blink {
+  from {
+    opacity: 0.15;
+  }
+
+  to {
+    opacity: 0.75;
+  }
+}
+
+@keyframes glow {
+  from {
+    opacity: 0.45;
+  }
+
+  to {
+    opacity: 0.85;
+  }
+}
+
+.piece-body {
+  fill: var(--piece);
+  stroke: var(--piece-edge);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.piece-text {
+  fill: #1f1408;
+  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'MS Mincho', 'Noto Serif CJK JP', serif;
+  font-weight: bold;
+}
+
+.piece-text.promoted {
+  fill: var(--red);
+}
+
+.guide {
+  fill: #2f6fb0;
+  opacity: 0.6;
+}
+
+.piece-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

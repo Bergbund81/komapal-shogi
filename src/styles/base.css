@@ -1,0 +1,88 @@
+/* コマパル 将棋の画面。外部フォント・外部 CDN は使わない（システムのフォントだけ）。 */
+:root {
+  --bg: #fdf6e3;
+  --ink: #3a2a14;
+  --wood: #e9c37c;
+  --wood-line: #6b4a1f;
+  --piece: #f8e2aa;
+  --piece-edge: #8a5a1c;
+  --red: #c4281c;
+  --accent: #f5a623;
+  --board-size: min(calc(100vw - 24px), max(20rem, calc(100dvh - 25.5rem)));
+  font-family:
+    'Hiragino Maru Gothic ProN', 'BIZ UDPGothic', 'Yu Gothic UI', Meiryo, system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 8px 12px 16px;
+  line-height: 1.7;
+}
+
+ruby rt {
+  font-size: 0.5em;
+  line-height: 1;
+}
+
+/* ---- 上の帯・メッセージ ---- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.mode-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #ead9b0;
+  font-size: 0.85rem;
+}
+
+.message {
+  margin: 6px 0;
+  padding: 8px 12px;
+  min-height: 3.4em;
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+  border: 2px solid #b9d49b;
+  background: #eaf4e2;
+  font-size: 1.05rem;
+}
+
+.message.warn {
+  border-color: #f0b25c;
+  background: #fff0d6;
+}
+
+.message.check {
+  border-color: var(--red);
+  background: #ffe3e0;
+  color: #8f1d14;
+  font-weight: bold;
+}
