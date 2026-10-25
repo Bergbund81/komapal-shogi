@@ -1,0 +1,6 @@
+node_modules/
+dist/
+tools/.venv/
+__pycache__/
+# 1万局面の照合データは大きいのでコミットしない（tools/rules_crosscheck.py で作る）
+tests/fixtures/crosscheck-10000.json

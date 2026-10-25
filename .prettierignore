@@ -1,0 +1,8 @@
+dist/
+node_modules/
+tools/.venv/
+public/
+docs/
+tests/fixtures/
+package-lock.json
+CLAUDE.md
