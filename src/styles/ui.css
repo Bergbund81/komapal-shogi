@@ -156,3 +156,113 @@
   width: 56px;
   height: 62px;
 }
+
+/* ---- 新規対局ダイアログ ---- */
+.dialog:has(.level-choices) {
+  max-height: 92vh;
+  overflow-y: auto;
+}
+
+.dialog .setting-group {
+  margin-top: 8px;
+}
+
+.mode-choices {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.side-choices {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.dialog .pick-choice {
+  padding: 6px 2px;
+  font-size: 0.9rem;
+}
+
+.dialog .pick-choice small {
+  font-size: 0.75rem;
+}
+
+/* 背の高いダイアログでも、ボタンは下に見えたままにする */
+.dialog:has(.level-choices) .dialog-actions {
+  position: sticky;
+  bottom: -20px;
+  margin: 12px -20px -20px;
+  padding: 10px 20px;
+  background: var(--bg);
+  border-top: 1px solid #e3d3aa;
+}
+
+.level-choices {
+  display: grid;
+  gap: 6px;
+}
+
+.pick-choice,
+.level-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 6px 10px;
+  border: 2px solid #e3d3aa;
+  border-radius: 12px;
+  background: #fffdf6;
+  cursor: pointer;
+}
+
+.pick-choice {
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+
+.pick-choice:has(input:checked),
+.level-card:has(input:checked) {
+  background: #fff1b8;
+  border-color: var(--accent);
+}
+
+.pick-choice:has(input:focus-visible),
+.level-card:has(input:focus-visible) {
+  outline: 3px solid #2f6fb0;
+  outline-offset: 2px;
+}
+
+.level-card:has(input:disabled) {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pick-choice input,
+.level-card input {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.level-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.level-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.level-body small,
+.pick-choice small {
+  color: #6b5a3a;
+}
+
+/* CPU が考えているあいだのメッセージ */
+.message.thinking {
+  border-color: #9bbcd9;
+  background: #e6f0fa;
+}

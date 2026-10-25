@@ -5,7 +5,7 @@ import { pieceSvg, promotedRole, type PieceOptions, type PieceStyle } from './pi
 import { getSettings, updateSettings } from './settings';
 
 /** ダイアログを開いて、閉じるときの値を返す。Esc・外側タップなら undefined */
-function open<T>(
+export function openDialog<T>(
   build: (close: (value: T) => void, dialog: HTMLDialogElement) => HTMLElement[],
 ): Promise<T | undefined> {
   return new Promise((resolve) => {
@@ -35,21 +35,21 @@ function open<T>(
   });
 }
 
-function heading(text: string): HTMLElement {
+export function heading(text: string): HTMLElement {
   const h = document.createElement('h2');
   h.className = 'dialog-title';
   h.append(ruby(text));
   return h;
 }
 
-function paragraph(text: string): HTMLElement {
+export function paragraph(text: string): HTMLElement {
   const p = document.createElement('p');
   p.className = 'dialog-text';
   p.append(ruby(text));
   return p;
 }
 
-function button(text: string, onClick: () => void, variant = ''): HTMLButtonElement {
+export function button(text: string, onClick: () => void, variant = ''): HTMLButtonElement {
   const b = document.createElement('button');
   b.type = 'button';
   b.className = `btn ${variant}`.trim();
@@ -58,7 +58,7 @@ function button(text: string, onClick: () => void, variant = ''): HTMLButtonElem
   return b;
 }
 
-function row(...children: HTMLElement[]): HTMLElement {
+export function row(...children: HTMLElement[]): HTMLElement {
   const div = document.createElement('div');
   div.className = 'dialog-actions';
   div.append(...children);
@@ -68,7 +68,7 @@ function row(...children: HTMLElement[]): HTMLElement {
 /** 「なる / ならない」を駒の絵つきで選ぶ。true=なる、false=ならない、undefined=やめた */
 export function askPromotion(role: Role, options: PieceOptions): Promise<boolean | undefined> {
   const promoted = promotedRole(role) ?? role;
-  return open<boolean>((close) => {
+  return openDialog<boolean>((close) => {
     const choice = (label: string, r: Role, value: boolean): HTMLButtonElement => {
       const b = button(label, () => close(value), 'choice');
       b.prepend(pieceSvg(r, 'sente', { ...options, guide: false, flipped: false }));
@@ -89,7 +89,7 @@ export async function confirmDialog(
   okLabel: string,
   cancelLabel = 'やめる',
 ): Promise<boolean> {
-  const answer = await open<boolean>((close) => [
+  const answer = await openDialog<boolean>((close) => [
     heading(title),
     paragraph(text),
     row(
@@ -102,7 +102,7 @@ export async function confirmDialog(
 
 /** 終局のお知らせ。「あたらしく」を選んだら true */
 export async function resultDialog(title: string, detail: string): Promise<boolean> {
-  const answer = await open<boolean>((close) => [
+  const answer = await openDialog<boolean>((close) => [
     heading(title),
     paragraph(detail),
     row(
@@ -177,7 +177,7 @@ function pieceStyleGroup(): HTMLElement {
 
 /** せってい。スイッチを触るとすぐ反映される */
 export async function settingsDialog(): Promise<void> {
-  await open<boolean>((close) => {
+  await openDialog<boolean>((close) => {
     const list = document.createElement('div');
     list.className = 'settings-list';
     list.append(...SWITCHES.map(switchItem), pieceStyleGroup());

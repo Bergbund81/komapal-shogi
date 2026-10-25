@@ -29,8 +29,22 @@ export const OTHER_TURN_MESSAGE = 'いまはあいてのばんだよ';
 
 export const COLOR_NAMES: Record<Color, string> = { sente: '先手', gote: '後手' };
 
-export function turnMessage(color: Color): string {
-  return `${COLOR_NAMES[color]}のばんだよ`;
+/** 画面に出す呼び名。CPU 戦では「あなた」と CPU の名前にする */
+export type SideNames = Readonly<Record<Color, string>>;
+
+export const THINKING_MESSAGE = 'かんがえちゅう…';
+export const CPU_ERROR_MESSAGE =
+  'CPUがうまくうごかなかったよ。「まった」でやりなおすか、あたらしくはじめてね';
+
+export function turnMessage(color: Color, names: SideNames = COLOR_NAMES): string {
+  return `${names[color]}のばんだよ`;
+}
+
+/** CPU 戦での呼び名 */
+export function cpuSideNames(human: Color, cpuName: string): SideNames {
+  return human === 'sente'
+    ? { sente: 'あなた', gote: cpuName }
+    : { sente: cpuName, gote: 'あなた' };
 }
 
 export interface ResultText {
@@ -39,17 +53,17 @@ export interface ResultText {
 }
 
 /** 終局のお知らせ */
-export function resultText(result: GameResult): ResultText {
+export function resultText(result: GameResult, names: SideNames = COLOR_NAMES): ResultText {
   switch (result.type) {
     case 'checkmate':
       return {
         title: '詰みだよ！',
-        detail: `${COLOR_NAMES[result.winner]}の勝ち！ 王さまがにげられなくなったよ`,
+        detail: `${names[result.winner]}の勝ち！ 王さまがにげられなくなったよ`,
       };
     case 'noMoves':
       return {
         title: 'うごかせる駒がないよ',
-        detail: `${COLOR_NAMES[result.winner]}の勝ち！`,
+        detail: `${names[result.winner]}の勝ち！`,
       };
     case 'repetition':
       return {
@@ -59,17 +73,17 @@ export function resultText(result: GameResult): ResultText {
     case 'perpetualCheck':
       return {
         title: '連続王手の千日手だよ',
-        detail: `${COLOR_NAMES[opposite(result.winner)]}は王手をつづけすぎたよ。${COLOR_NAMES[result.winner]}の勝ち！`,
+        detail: `${names[opposite(result.winner)]}は王手をつづけすぎたよ。${names[result.winner]}の勝ち！`,
       };
     case 'resign':
       return {
         title: 'こうさん',
-        detail: `${COLOR_NAMES[opposite(result.winner)]}がこうさんしたよ。${COLOR_NAMES[result.winner]}の勝ち！`,
+        detail: `${names[opposite(result.winner)]}がこうさんしたよ。${names[result.winner]}の勝ち！`,
       };
     case 'impasse':
       return {
         title: '入玉せんげん',
-        detail: `${COLOR_NAMES[result.winner]}の勝ち！`,
+        detail: `${names[result.winner]}の勝ち！`,
       };
   }
 }

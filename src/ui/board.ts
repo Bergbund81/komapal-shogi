@@ -11,6 +11,8 @@ const MARGIN_BOTTOM = 10;
 const BOARD = CELL * 9;
 const RANK_LETTERS = 'abcdefghi';
 const RANK_KANJI = '一二三四五六七八九';
+/** CPU の駒が動くアニメーションの長さ（ミリ秒） */
+const ANIMATION_MS = 320;
 
 export interface BoardState {
   position: Position;
@@ -31,6 +33,15 @@ export interface BoardState {
 /** 画面の列・行 → USI の升名。"7g" = 7筋・g段（一番上が a 段、左端が 9 筋） */
 function squareAt(col: number, row: number, flipped: boolean): string {
   return flipped ? `${col + 1}${RANK_LETTERS[8 - row]}` : `${9 - col}${RANK_LETTERS[row]}`;
+}
+
+/** 升の中心（盤の座標）。squareAt の逆 */
+function squareCenter(sq: string, flipped: boolean): { x: number; y: number } {
+  const file = Number(sq[0]);
+  const rank = RANK_LETTERS.indexOf(sq[1] ?? '');
+  const col = flipped ? file - 1 : 9 - file;
+  const row = flipped ? 8 - rank : rank;
+  return { x: MARGIN_LEFT + col * CELL + CELL / 2, y: MARGIN_TOP + row * CELL + CELL / 2 };
 }
 
 /** 王手されている手番側の王の升 */
@@ -85,6 +96,7 @@ export class BoardView {
         if (piece) {
           const g = pieceGroup(piece.role, piece.color, state);
           g.setAttribute('transform', `translate(${x + CELL / 2} ${y + CELL / 2}) scale(0.92)`);
+          g.dataset['pieceSq'] = sq;
           pieces.append(g);
         }
         taps.append(
@@ -93,6 +105,36 @@ export class BoardView {
       }
     }
     this.el.replaceChildren(background, marks, pieces, taps);
+  }
+
+  /**
+   * CPU の手のアニメーション。render() の直後に呼ぶ。
+   * 盤上の移動は元の升から先の升へスッと動かし、打つ手は打った升にふわっと出す。
+   */
+  animateMove(usi: string, flipped: boolean): void {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const to = usi.slice(2, 4);
+    const piece = this.el.querySelector<SVGGElement>(`[data-piece-sq="${to}"]`);
+    if (!piece || typeof piece.animate !== 'function') return;
+    const place = (sq: string, scale: number): string => {
+      const { x, y } = squareCenter(sq, flipped);
+      return `translate(${x}px, ${y}px) scale(${scale})`;
+    };
+    const options = { duration: ANIMATION_MS, easing: 'ease-out' };
+    if (usi[1] === '*') {
+      piece.animate(
+        [
+          { transform: place(to, 0.5), opacity: 0 },
+          { transform: place(to, 0.92), opacity: 1 },
+        ],
+        options,
+      );
+    } else {
+      piece.animate(
+        [{ transform: place(usi.slice(0, 2), 0.92) }, { transform: place(to, 0.92) }],
+        options,
+      );
+    }
   }
 
   private drawGrid(parent: SVGGElement, flipped: boolean): void {
