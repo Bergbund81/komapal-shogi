@@ -1,0 +1,13 @@
+{
+  "aspect": "3:4",
+  "avatars": [
+    {"id": "girl", "name": "女の子", "file": "girl.svg"},
+    {"id": "boy", "name": "男の子", "file": "boy.svg"},
+    {"id": "papa", "name": "パパ", "file": "papa.svg"},
+    {"id": "mama", "name": "ママ", "file": "mama.svg"},
+    {"id": "dog", "name": "いぬ", "file": "dog.svg"},
+    {"id": "cat", "name": "ねこ", "file": "cat.svg"},
+    {"id": "chicken", "name": "にわとり", "file": "chicken.svg"},
+    {"id": "penguin", "name": "ペンギン", "file": "penguin.svg"}
+  ]
+}
