@@ -230,8 +230,8 @@ export const LEVELS: readonly LevelConfig[] = [
       slowDevice: { npsBelow: 1_000_000, thinkMs: 1500 },
       multipv: 1,
       noise: 0,
-      // L9 よりもう 1 手深く読もうとする（時間内に深さ 4 を読み切れたときだけ L9 より強い）
-      fallback: { depth: 4, timeMs: 6000, noise: 0, quiescence: 4 },
+      // 深さ 4 は時間内に読み切れないことが多いので、L9 より取り合いをさらに深く（5 手）読む
+      fallback: { depth: 3, timeMs: 6000, noise: 0, quiescence: 5 },
     },
   },
 ];
