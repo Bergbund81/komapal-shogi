@@ -1,6 +1,6 @@
 // CPU の番の進め方。DOM を使わないので単体テストできる。
 // 人の手を先に画面へ出したあとで呼ぶと、AI に手を聞き、最低 MIN_THINK_MS たってから指す。
-// L3 以上は、負けがはっきりした（評価値 RESIGN_SCORE 以下が RESIGN_STREAK 手続いた）ら投了する。
+// やねうら王のレベル（L8〜10）は、負けがはっきりした（評価値 RESIGN_SCORE 以下が RESIGN_STREAK 手続いた）ら投了する。
 import { AiCancelledError, type AiClient } from '../ai/client';
 import { RESIGN_SCORE, RESIGN_STREAK } from '../ai/levels';
 import type { GameSession } from '../game/session';
@@ -14,7 +14,7 @@ export interface CpuTurnOptions {
   client: Pick<AiClient, 'choose' | 'stop'>;
   cpuColor: Color;
   level: number;
-  /** このレベルは投了するか（L3 以上） */
+  /** このレベルは投了するか（L8〜10） */
   resigns: boolean;
   /** CPU が指した直後に呼ばれる（画面の更新・アニメーション） */
   onMove: (usi: string) => void;

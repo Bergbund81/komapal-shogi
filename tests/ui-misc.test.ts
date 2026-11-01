@@ -6,6 +6,7 @@ import { LEVELS } from '../src/ai/levels';
 import { segments } from '../src/ui/furigana';
 import * as messages from '../src/ui/messages';
 import { ILLEGAL_MESSAGES, resultText } from '../src/ui/messages';
+import { EASY_MODE_NOTE, LEVEL_TIERS } from '../src/ui/newgame-dialog';
 import {
   ALL_ROLES,
   HIRAGANA,
@@ -47,6 +48,8 @@ describe('ふりがな', () => {
         (v): v is string => typeof v === 'string',
       ),
       ...Object.values(ILLEGAL_MESSAGES),
+      ...LEVEL_TIERS.flatMap((t) => [t.label, `レベル${t.from}〜${t.to}`]),
+      EASY_MODE_NOTE,
     ];
     for (const text of texts) {
       const bare = segments(text)

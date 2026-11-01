@@ -1,9 +1,9 @@
-// L3〜5 の手の選び方。やねうら王の結果から選ぶ／エンジンが無いときは自作αβで選ぶ。
+// L4〜10 の手の選び方。やねうら王の結果から選ぶ（L8〜10）／自作αβで選ぶ（L4〜7・かんたんモード）。
 // どちらも最後に legalMoves() に入っているかを確かめる（CLAUDE.md の絶対ルール）。
 import { legalMoves, type Position } from '../rules';
 import { searchAlphaBeta } from './alphabeta';
 import type { GoOptions, SearchResult } from './engine';
-import type { EngineParams } from './levels';
+import type { EngineParams, SearchParams } from './levels';
 import type { Rng } from './rng';
 
 export interface ChosenMove {
@@ -59,13 +59,19 @@ export function pickEngineMove(
   return { move: chosen.move, score: best.score };
 }
 
-/** かんたんモード: 自作αβで選ぶ。合法手が無ければ undefined */
-export function chooseFallbackMove(
+/** 自作αβで選ぶ（L4〜7、とかんたんモードの L8〜10）。合法手が無ければ undefined */
+export function chooseSearchMove(
   pos: Position,
-  params: EngineParams,
+  params: SearchParams,
   rng: Rng,
 ): ChosenMove | undefined {
-  const { depth, timeMs, noise } = params.fallback;
-  const r = searchAlphaBeta(pos, { maxDepth: depth, timeMs, noise, rng });
+  const { depth, timeMs, noise, quiescence } = params;
+  const r = searchAlphaBeta(pos, {
+    maxDepth: depth,
+    timeMs,
+    noise,
+    rng,
+    ...(quiescence === undefined ? {} : { quiescenceDepth: quiescence }),
+  });
   return r ? { move: r.move, score: r.score } : undefined;
 }

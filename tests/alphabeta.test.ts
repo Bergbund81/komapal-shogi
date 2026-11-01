@@ -48,6 +48,15 @@ describe('searchAlphaBeta', () => {
     }
   });
 
+  it('ゆらぎ 0 でも、同点の手は乱数で選ぶ（毎回同じ手にならない）', () => {
+    const pos = parseSfen(INITIAL_SFEN);
+    const seen = new Set<string | undefined>();
+    for (let seed = 1; seed <= 20; seed++) {
+      seen.add(searchAlphaBeta(pos, { maxDepth: 2, timeMs: 5000, rng: createRng(seed) })?.move);
+    }
+    expect(seen.size).toBeGreaterThan(3);
+  });
+
   it('指せる手が無ければ undefined', () => {
     // 後手玉が詰んでいる局面（後手番）
     const pos = parseSfen('4k4/4G4/4P4/9/9/9/9/9/4K4 w 2r2b3g4s4n4l17p 2');

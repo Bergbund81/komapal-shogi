@@ -16,7 +16,7 @@ export class AiCancelledError extends Error {
   }
 }
 
-/** CPU が選んだ手。score は CPU から見た評価値（L3 以上のときだけ） */
+/** CPU が選んだ手。score は CPU から見た評価値（L4 以上のときだけ） */
 export interface AiMove {
   move: string;
   score?: number;

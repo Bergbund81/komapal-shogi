@@ -256,9 +256,98 @@
   flex-direction: column;
 }
 
+.level-body {
+  flex: 1;
+}
+
 .level-body small,
 .pick-choice small {
   color: #6b5a3a;
+}
+
+.level-title {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 0.4em;
+}
+
+.level-title > span {
+  white-space: nowrap;
+}
+
+/* せまい画面: カードの中を少しつめる */
+@media (max-width: 420px) {
+  .level-card {
+    gap: 6px;
+    padding: 6px 8px;
+  }
+
+  .level-icon {
+    font-size: 1.5rem;
+  }
+}
+
+.level-body .level-easy {
+  color: #2f6fb0;
+}
+
+/* レベルの 3 つのグループ（はじめて／れんしゅう／ちょうせん）: 見出しとカードの左の帯を色分けする */
+.tier-start {
+  --tier: #4caf50;
+  --tier-bg: #eaf6e6;
+}
+
+.tier-practice {
+  --tier: #2f80c8;
+  --tier-bg: #e6f0fa;
+}
+
+.tier-challenge {
+  --tier: #d9534f;
+  --tier-bg: #fbe9e7;
+}
+
+.level-tier {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 8px 0 -2px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--tier-bg);
+  color: var(--tier);
+}
+
+.level-tier:first-child {
+  margin-top: 0;
+}
+
+.level-tier small {
+  color: inherit;
+}
+
+.level-card,
+.level-card:has(input:checked) {
+  border-left: 8px solid var(--tier);
+}
+
+/* つよさメーター: 10 本の棒がだんだん高くなる（高さは newgame-dialog.ts で決める）。レベルの数だけ色がつく */
+.level-meter {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 24px;
+  flex: none;
+}
+
+.level-meter span {
+  width: 4px;
+  border-radius: 2px;
+  background: #e8dcc0;
+}
+
+.level-meter span.on {
+  background: var(--tier);
 }
 
 /* CPU が考えているあいだのメッセージ */

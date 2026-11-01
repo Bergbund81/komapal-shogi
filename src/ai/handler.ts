@@ -1,5 +1,5 @@
 // Worker の中身。DOM にも Worker にも依存しないので、Vitest からそのまま試せる。
-// L1・2 = こども AI、L3〜5 = やねうら王（読み込めなければ自作αβ = かんたんモード）。
+// L1〜3 = こども AI、L4〜7 = 自作αβ、L8〜10 = やねうら王（読み込めなければ自作αβ = かんたんモード）。
 import { INITIAL_SFEN, parseSfen, playMove, type Position } from '../rules';
 import {
   createWorkerBackend,
@@ -7,7 +7,7 @@ import {
   UsiEngine,
   type EngineBackend,
 } from './engine';
-import { chooseFallbackMove, goOptionsFor, pickEngineMove, type ChosenMove } from './engine-ai';
+import { chooseSearchMove, goOptionsFor, pickEngineMove, type ChosenMove } from './engine-ai';
 import { chooseKidsMove } from './kids-ai';
 import {
   BENCH_NODES,
@@ -148,7 +148,7 @@ export function createAiHandler(
 
   async function choose(req: Extract<AiRequest, { type: 'choose' }>): Promise<void> {
     const level = getLevel(req.level);
-    if (!level?.available || (!level.kids && !level.engine)) {
+    if (!level?.available || (!level.kids && !level.search && !level.engine)) {
       post({ type: 'error', id: req.id, message: `レベル${req.level}はまだ使えません` });
       return;
     }
@@ -160,10 +160,14 @@ export function createAiHandler(
       post(move ? { type: 'bestmove', id: req.id, move } : { type: 'nomove', id: req.id });
       return;
     }
-    const params = level.engine as EngineParams;
-    let chosen = await engineMove(req, pos, params, rng);
-    if (stopped.has(req.id)) return;
-    chosen ??= chooseFallbackMove(pos, params, rng);
+    let chosen: ChosenMove | undefined;
+    if (level.search) chosen = chooseSearchMove(pos, level.search, rng);
+    else {
+      const params = level.engine as EngineParams;
+      chosen = await engineMove(req, pos, params, rng);
+      if (stopped.has(req.id)) return;
+      chosen ??= chooseSearchMove(pos, params.fallback, rng);
+    }
     if (stopped.has(req.id)) return;
     post(
       chosen

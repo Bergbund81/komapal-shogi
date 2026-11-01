@@ -100,15 +100,15 @@ describe('UsiEngine', () => {
 });
 
 describe('goOptionsFor / pickEngineMove', () => {
-  it('L3 は nodes 3000・MultiPV 4、L4 は nodes 300000', () => {
-    expect(goOptionsFor(params(3))).toEqual({ multipv: 4, nodes: 3000 });
-    expect(goOptionsFor(params(4))).toEqual({ multipv: 1, nodes: 300_000 });
+  it('L8 は nodes 3000・MultiPV 4、L9 は nodes 300000', () => {
+    expect(goOptionsFor(params(8))).toEqual({ multipv: 4, nodes: 3000 });
+    expect(goOptionsFor(params(9))).toEqual({ multipv: 1, nodes: 300_000 });
   });
 
-  it('L5 は 3 秒。遅い端末だけ局面数の上限をつける', () => {
-    expect(goOptionsFor(params(5))).toEqual({ multipv: 1, byoyomiMs: 3000 });
-    expect(goOptionsFor(params(5), 5_000_000)).toEqual({ multipv: 1, byoyomiMs: 3000 });
-    expect(goOptionsFor(params(5), 200_000)).toEqual({
+  it('L10 は 3 秒。遅い端末だけ局面数の上限をつける', () => {
+    expect(goOptionsFor(params(10))).toEqual({ multipv: 1, byoyomiMs: 3000 });
+    expect(goOptionsFor(params(10), 5_000_000)).toEqual({ multipv: 1, byoyomiMs: 3000 });
+    expect(goOptionsFor(params(10), 200_000)).toEqual({
       multipv: 1,
       byoyomiMs: 3000,
       nodes: 300_000,
@@ -127,12 +127,12 @@ describe('goOptionsFor / pickEngineMove', () => {
           { move: '7g7f', score: 40, pv: [] },
         ],
       },
-      params(4),
+      params(9),
       rng,
     );
     expect(ok).toEqual({ move: '7g7f', score: 40 });
     expect(
-      pickEngineMove(pos, { bestmove: 'resign', candidates: [] }, params(4), rng),
+      pickEngineMove(pos, { bestmove: 'resign', candidates: [] }, params(9), rng),
     ).toBeUndefined();
   });
 
@@ -149,7 +149,7 @@ describe('goOptionsFor / pickEngineMove', () => {
             { move: 'G*6b', score: 900, pv: [] },
           ],
         },
-        params(3),
+        params(8),
         createRng(seed),
       );
       expect(chosen?.move).toBe('G*5b');

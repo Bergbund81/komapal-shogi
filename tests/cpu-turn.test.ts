@@ -35,7 +35,7 @@ function setup(cpuColor: 'sente' | 'gote', resigns = false) {
     session,
     client,
     cpuColor,
-    level: resigns ? 3 : 1,
+    level: resigns ? 8 : 1,
     resigns,
     onThinking: (t) => events.push(t ? 'thinking' : 'done'),
     onMove: (usi) => events.push(`move ${usi}`),
@@ -110,7 +110,7 @@ describe('CpuTurn', () => {
     expect(cpu.isThinking).toBe(false);
   });
 
-  it('L3 以上は、評価値 -3000 以下が 2 手続いたら投了する（1 手目は指す）', async () => {
+  it('投了するレベル（L8〜10）は、評価値 -3000 以下が 2 手続いたら投了する（1 手目は指す）', async () => {
     const { session, client, cpu, events } = setup('sente', true);
     const first = cpu.maybeStart();
     client.waiting.shift()?.resolve({ move: '7g7f', score: -3500 });
@@ -144,7 +144,7 @@ describe('CpuTurn', () => {
     expect(session.ply).toBe(6);
   });
 
-  it('投了しないレベル（L1・L2）は、評価値が低くても指す', async () => {
+  it('投了しないレベル（L1〜7）は、評価値が低くても指す', async () => {
     const { session, client, cpu } = setup('sente', false);
     for (const [move, reply] of [
       ['7g7f', '3c3d'],
@@ -192,12 +192,13 @@ describe('対局設定', () => {
 
   it('壊れた保存データや選べないレベルは既定値に戻す', () => {
     expect(sanitizeConfig(null)).toEqual({ mode: 'cpu', level: 1, side: 'sente' });
-    expect(sanitizeConfig({ mode: 'two', level: 9, side: 'gote' })).toEqual({
+    expect(sanitizeConfig({ mode: 'two', level: 99, side: 'gote' })).toEqual({
       mode: 'two',
       level: 1,
       side: 'gote',
     });
-    expect(sanitizeConfig({ mode: 'cpu', level: 5, side: 'gote' }).level).toBe(5);
+    expect(sanitizeConfig({ mode: 'cpu', level: 10, side: 'gote' }).level).toBe(10);
+    expect(sanitizeConfig({ mode: 'cpu', level: 11, side: 'gote' }).level).toBe(1);
     expect(sanitizeConfig({ mode: 'x', level: 'a', side: 3 })).toEqual({
       mode: 'cpu',
       level: 1,

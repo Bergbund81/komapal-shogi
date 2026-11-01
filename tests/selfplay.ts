@@ -1,11 +1,11 @@
 // 自己対局: CPU どうしを対戦させ、反則チェックと勝率を集計する。
 //   npm run selfplay -- --black 2 --white 1 --games 50 [--seed 1] [--max-plies 300]
-//   L3〜5 はやねうら王（wasm）を Node で動かす: [--threads 1] [--l5-ms 3000] [--easy]
+//   L8〜10 はやねうら王（wasm）を Node で動かす: [--threads 1] [--l10-ms 3000] [--easy]
 // レベル 0 は完全ランダム。先後は 1 局ごとに入れ替え、--black / --white は「A 側」「B 側」の意味。
-// --easy を付けると、L3〜5 はエンジンの代わりに自作αβ（かんたんモード）で指す。
-// L3 以上は画面と同じく、評価値 RESIGN_SCORE 以下が RESIGN_STREAK 手続いたら投了する。
+// --easy を付けると、L8〜10 はエンジンの代わりに自作αβ（かんたんモード）で指す。
+// 投了するレベル（L8〜10）は画面と同じく、評価値 RESIGN_SCORE 以下が RESIGN_STREAK 手続いたら投了する。
 import { UsiEngine } from '../src/ai/engine';
-import { chooseFallbackMove, goOptionsFor, pickEngineMove } from '../src/ai/engine-ai';
+import { chooseSearchMove, goOptionsFor, pickEngineMove } from '../src/ai/engine-ai';
 import { chooseKidsMove, chooseRandomMove } from '../src/ai/kids-ai';
 import { ENGINE_HASH_MB, getLevel, RESIGN_SCORE, RESIGN_STREAK } from '../src/ai/levels';
 import type { PositionSpec } from '../src/ai/protocol';
@@ -33,7 +33,7 @@ interface Args {
   seed: number;
   maxPlies: number;
   threads: number;
-  l5Ms: number | undefined;
+  l10Ms: number | undefined;
   easy: boolean;
 }
 
@@ -65,15 +65,24 @@ async function playerFor(level: number, args: Args): Promise<Player> {
       },
     };
   }
+  if (lv.search) {
+    const params = lv.search;
+    return {
+      ...base,
+      name,
+      resigns: lv.resigns,
+      choose: (pos, _spec, rng) => Promise.resolve(chooseSearchMove(pos, params, rng)),
+    };
+  }
   if (!lv.engine) throw new Error(`レベル${level}の設定がありません`);
   const params =
-    level === 5 && args.l5Ms !== undefined ? { ...lv.engine, byoyomiMs: args.l5Ms } : lv.engine;
+    level === 10 && args.l10Ms !== undefined ? { ...lv.engine, byoyomiMs: args.l10Ms } : lv.engine;
   if (args.easy) {
     return {
       ...base,
       name: `${name}（かんたんモード）`,
       resigns: lv.resigns,
-      choose: (pos, _spec, rng) => Promise.resolve(chooseFallbackMove(pos, params, rng)),
+      choose: (pos, _spec, rng) => Promise.resolve(chooseSearchMove(pos, params.fallback, rng)),
     };
   }
   // 先後で別々のエンジンを使う（置換表を共有しない）
@@ -104,7 +113,7 @@ function parseArgs(argv: string[]): Args {
     seed: get('seed', 1),
     maxPlies: get('max-plies', 300),
     threads: get('threads', 1),
-    l5Ms: argv.includes('--l5-ms') ? get('l5-ms', 3000) : undefined,
+    l10Ms: argv.includes('--l10-ms') ? get('l10-ms', 3000) : undefined,
     easy: argv.includes('--easy'),
   };
 }

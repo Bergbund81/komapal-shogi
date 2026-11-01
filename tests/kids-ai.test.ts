@@ -1,4 +1,4 @@
-// こども AI（レベル1・2）: 必ず合法手を選ぶ、詰み・タダ取りの扱い
+// こども AI（レベル1〜3）: 必ず合法手を選ぶ、詰み・タダ取りの扱い
 import { describe, expect, it } from 'vitest';
 import { materialScore } from '../src/ai/eval';
 import {
@@ -152,6 +152,45 @@ describe('L1 のうっかり', () => {
       expect(forward).not.toContain(chooseKidsMove(kingPos, careful, rng));
     }
     expect(forward.some((m) => countMove(kingPos, base, m) > 0)).toBe(true);
+  });
+});
+
+describe('L3 うさぎ（こども AI の最強版）', () => {
+  const L3 = getLevel(3)?.kids as KidsParams;
+  // 先手の飛車 5e が後手の歩 5c を取れるが、後手の金 6c に取り返される（飛車をタダでとられる）
+  const trapPos = parseSfen('8k/9/3gp4/9/4R4/9/9/9/K8 b - 1');
+  const trap = ['5e5c', '5e5c+'];
+
+  it('合法手だけを指し、1 手詰めは必ず指す', () => {
+    const rng = createRng(2);
+    for (const sfen of sfens.slice(0, 50)) {
+      const pos = parseSfen(sfen, false);
+      const legal = legalMoves(pos);
+      const move = chooseKidsMove(pos, L3, rng);
+      if (legal.length === 0) expect(move).toBeUndefined();
+      else expect(legal).toContain(move);
+    }
+    const matePos = parseSfen(MATE_IN_ONE);
+    const mates = mateInOneMoves(matePos, legalMoves(matePos));
+    for (let seed = 1; seed <= 20; seed++) {
+      expect(mates).toContain(chooseKidsMove(matePos, L3, createRng(seed)));
+    }
+  });
+
+  it('駒得に見えても、指した駒がタダで取られる手は指さない', () => {
+    for (let seed = 1; seed <= 50; seed++) {
+      expect(trap).not.toContain(chooseKidsMove(trapPos, L3, createRng(seed)));
+    }
+    // 避けなければ、1 手読みの駒得だけ見て飛び込む（L2 のゆらぎを無くした形）
+    const greedy = { ...L3, avoidHangProb: 0, avoidBigHangProb: 0 };
+    expect(trap).toContain(chooseKidsMove(trapPos, greedy, createRng(1)));
+  });
+
+  it('ゆらぎは無いが、同点の手からは乱数で選ぶ（毎回同じ手にならない）', () => {
+    const pos = parseSfen(INITIAL_SFEN);
+    const seen = new Set<string | undefined>();
+    for (let seed = 1; seed <= 20; seed++) seen.add(chooseKidsMove(pos, L3, createRng(seed)));
+    expect(seen.size).toBeGreaterThan(3);
   });
 });
 

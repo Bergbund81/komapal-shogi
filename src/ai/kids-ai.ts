@@ -1,7 +1,8 @@
-// レベル1・2の「こども AI」。必ず legalMoves() の中から手を選ぶ。
+// レベル1〜3の「こども AI」。必ず legalMoves() の中から手を選ぶ。
 // L1: ほぼランダム（タダ取りと 1 手詰めは、決まった確率でだけ気づく。
 //     タダで取られる手や、意味のない王の前進は、ときどきだけ避ける）
 // L2: 全合法手を 1 手読みして駒得で選ぶ（ゆらぎつき・1 手詰めは見逃さない）
+// L3: L2 からゆらぎを無くし、指した駒がタダで取られる手を必ず避ける（こども AI の最強版）
 import { isDrop, parseSquareName, squareRank } from 'shogiops/util';
 import {
   isCheckmate,
@@ -53,6 +54,21 @@ export function freeCaptureMoves(pos: Position, moves: readonly string[]): strin
 /** 1 手読み: 指した後の駒得に、ゆらぎを足した点で最もよい手 */
 function lookaheadMove(pos: Position, moves: readonly string[], noise: number, rng: Rng): string {
   const me = pos.turn;
+  if (noise <= 0) {
+    // ゆらぎなし（L3）: 同点の最善手が並んだら、その中から乱数で選ぶ（毎回同じ手にならないように）
+    let bestMoves: string[] = [];
+    let top = -Infinity;
+    for (const usi of moves) {
+      const next = after(pos, usi);
+      if (!next) continue;
+      const score = materialScore(next, me);
+      if (score > top) {
+        top = score;
+        bestMoves = [usi];
+      } else if (score === top) bestMoves.push(usi);
+    }
+    return pick(bestMoves, rng) ?? moves[0] ?? '';
+  }
   let best = moves[0] ?? '';
   let bestScore = -Infinity;
   for (const usi of moves) {
@@ -88,6 +104,28 @@ function isAimlessKingAdvance(pos: Position, usi: string): boolean {
   if (pos.board.pieceAt(md.from)?.role !== 'king' || pos.board.hasPieceAt(md.to)) return false;
   const dRank = squareRank(md.to) - squareRank(md.from);
   return pos.turn === 'sente' ? dRank < 0 : dRank > 0;
+}
+
+/**
+ * 1 手読みの前に、指した駒がタダで取られる手を（確率で）外す。全部外れるときは元のまま。
+ * 確率が 0 のレベル（L2）は乱数も使わないので、これまでと同じ手を選ぶ
+ */
+function withoutHangingMoves(
+  pos: Position,
+  moves: readonly string[],
+  p: KidsParams,
+  rng: Rng,
+): readonly string[] {
+  if (p.avoidHangProb <= 0 && p.avoidBigHangProb <= 0) return moves;
+  const safe = moves.filter((usi) => {
+    const next = after(pos, usi);
+    const to = usi.slice(2, 4);
+    const role = next?.board.pieceAt(parseSquareName(to) ?? -1)?.role;
+    if (!next || !role || !leavesPieceHanging(next, to)) return true;
+    const avoid = BIG_ROLES.includes(role) ? p.avoidBigHangProb : p.avoidHangProb;
+    return rng() >= avoid;
+  });
+  return safe.length > 0 ? safe : moves;
 }
 
 /** ほぼランダム。避ける手に当たっても、確率でそのまま指す（ほかの手が無ければ必ず指す） */
@@ -126,7 +164,9 @@ export function chooseKidsMove(pos: Position, params: KidsParams, rng: Rng): str
     if (mate) return mate;
   }
 
-  if (params.lookahead) return lookaheadMove(pos, moves, params.noise, rng);
+  if (params.lookahead) {
+    return lookaheadMove(pos, withoutHangingMoves(pos, moves, params, rng), params.noise, rng);
+  }
 
   if (rng() < params.freePieceTakeProb) {
     const free = freeCaptureMoves(pos, moves);

@@ -1,5 +1,5 @@
-// 新規対局ダイアログ: モード・レベル（名前・アイコン・説明つき）・先手/後手/ランダム。
-import { LEVELS } from '../ai/levels';
+// 新規対局ダイアログ: モード・レベル（名前・アイコン・説明・つよさメーターつき）・先手/後手/ランダム。
+import { LEVELS, type LevelConfig } from '../ai/levels';
 import type { GameConfig, GameMode, SideChoice } from '../game/config';
 import { button, heading, openDialog, row } from './dialogs';
 import { ruby } from './furigana';
@@ -14,6 +14,28 @@ const SIDE_CHOICES: ReadonlyArray<{ value: SideChoice; label: string; hint: stri
   { value: 'gote', label: '後手', hint: 'あとから指す' },
   { value: 'random', label: 'ランダム', hint: 'おまかせ' },
 ];
+
+export interface LevelTier {
+  /** CSS の色分けに使う名前（tier-<key>） */
+  key: 'start' | 'practice' | 'challenge';
+  label: string;
+  from: number;
+  to: number;
+}
+
+/** レベルの 3 つのグループ。グループごとに見出しと色を分ける */
+export const LEVEL_TIERS: readonly LevelTier[] = [
+  { key: 'start', label: 'はじめて', from: 1, to: 3 },
+  { key: 'practice', label: 'れんしゅう', from: 4, to: 7 },
+  { key: 'challenge', label: 'ちょうせん', from: 8, to: 10 },
+];
+
+export function tierOf(level: number): LevelTier | undefined {
+  return LEVEL_TIERS.find((t) => t.from <= level && level <= t.to);
+}
+
+/** かんたんモード（やねうら王が使えない端末）のとき、L8〜10 のカードに出す一言 */
+export const EASY_MODE_NOTE = 'いまはかんたんモードでうごくよ';
 
 function text(tag: 'span' | 'strong' | 'small', content: string): HTMLElement {
   const node = document.createElement(tag);
@@ -53,8 +75,28 @@ function choice(
   return label;
 }
 
-/** 新規対局の設定を聞く。「はじめる」なら設定、やめたら undefined（外側タップ・Esc も同じ） */
-export function newGameDialog(initial: GameConfig): Promise<GameConfig | undefined> {
+/** つよさメーター: レベルの数だけ、だんだん高くなる棒が光る */
+function strengthMeter(level: LevelConfig): HTMLElement {
+  const meter = document.createElement('span');
+  meter.className = 'level-meter';
+  meter.setAttribute('aria-hidden', 'true');
+  LEVELS.forEach((lv, i) => {
+    const bar = document.createElement('span');
+    if (lv.id <= level.id) bar.className = 'on';
+    bar.style.height = `${((i + 1) / LEVELS.length) * 100}%`;
+    meter.append(bar);
+  });
+  return meter;
+}
+
+/**
+ * 新規対局の設定を聞く。「はじめる」なら設定、やめたら undefined（外側タップ・Esc も同じ）。
+ * easyMode ならやねうら王のレベルに「かんたんモード」の一言をそえる
+ */
+export function newGameDialog(
+  initial: GameConfig,
+  easyMode = false,
+): Promise<GameConfig | undefined> {
   const cfg: GameConfig = { ...initial };
   return openDialog<GameConfig | null>((close) => {
     const modes = group('あそびかた', 'mode-choices');
@@ -83,7 +125,17 @@ export function newGameDialog(initial: GameConfig): Promise<GameConfig | undefin
     }
 
     for (const lv of LEVELS) {
-      const title = text('strong', `レベル${lv.id} ${lv.name}`);
+      const tier = tierOf(lv.id);
+      if (tier?.from === lv.id) {
+        const label = document.createElement('span');
+        label.className = `level-tier tier-${tier.key}`;
+        label.append(text('strong', tier.label), text('small', `レベル${tier.from}〜${tier.to}`));
+        levels.list.append(label);
+      }
+      // 「レベル N」と名前は、それぞれ途中で改行しない（せまい画面で「ひよ／こ」にならないように）
+      const title = document.createElement('strong');
+      title.className = 'level-title';
+      for (const part of [`レベル${lv.id}`, lv.name]) title.append(text('span', part));
       const note = text('small', lv.available ? lv.description : 'じゅんびちゅう');
       const icon = text('span', lv.icon);
       icon.className = 'level-icon';
@@ -91,15 +143,21 @@ export function newGameDialog(initial: GameConfig): Promise<GameConfig | undefin
       const body = document.createElement('span');
       body.className = 'level-body';
       body.append(title, note);
+      if (easyMode && lv.kind === 'engine') {
+        const easy = text('small', EASY_MODE_NOTE);
+        easy.className = 'level-easy';
+        body.append(easy);
+      }
       levels.list.append(
         choice(
           'level',
-          'level-card',
+          `level-card tier-${tier?.key ?? 'start'}`,
           lv.available && cfg.level === lv.id,
           !lv.available,
           () => (cfg.level = lv.id),
           icon,
           body,
+          strengthMeter(lv),
         ),
       );
     }

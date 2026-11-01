@@ -198,7 +198,7 @@ export function startApp(root: HTMLElement): void {
     renderHands();
     renderHistory(historyList, session.startSfen, session.history);
     setRuby(badge, badgeText());
-    // やねうら王を使うレベル（L3〜5）で、自作αβに切り替わっているときだけ出す
+    // やねうら王を使うレベル（L8〜10）で、自作αβに切り替わっているときだけ出す
     engineNote.hidden = !(
       engineStatus === 'fallback' &&
       game.mode === 'cpu' &&
@@ -283,7 +283,7 @@ export function startApp(root: HTMLElement): void {
 
   /** 設定ダイアログで聞いて、決まったら新しい対局を始める。やめたら false */
   async function chooseNewGame(): Promise<boolean> {
-    const picked = await newGameDialog(loadConfig());
+    const picked = await newGameDialog(loadConfig(), engineStatus === 'fallback');
     if (!picked) return false;
     saveConfig(picked);
     startNewGame(picked);

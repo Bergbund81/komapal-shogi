@@ -24,7 +24,7 @@ export type AiRequest =
 export type EngineStatus = 'loading' | 'ready' | 'fallback';
 
 export type AiResponse =
-  /** score は手番側（CPU）から見た評価値。L3 以上のときだけ付く（投了の判断に使う） */
+  /** score は手番側（CPU）から見た評価値。L4 以上のときだけ付く（投了の判断に使う） */
   | { type: 'bestmove'; id: number; move: string; score?: number }
   /** 指せる手が無い */
   | { type: 'nomove'; id: number }

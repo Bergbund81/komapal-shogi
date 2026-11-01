@@ -1,4 +1,4 @@
-// 自作αβ探索。やねうら王が動かない端末で L3〜5 の代わりに使う（「かんたんモード」）。
+// 自作αβ探索。L4〜7 と、やねうら王が動かない端末での L8〜10（「かんたんモード」）で使う。
 // 反復深化＋取る手だけの静止探索。評価は駒得（eval.ts）。手は必ず legalMoves() から選ぶ。
 import { isDrop } from 'shogiops/util';
 import { legalMoves, parseMove, playUnchecked, type Position } from '../rules';
@@ -117,7 +117,13 @@ export function searchAlphaBeta(
     return best;
   }
 
+  // 最初の並びを乱数でまぜる。並べ替えは同じ点の順番を変えないので、同点の最善手は乱数で選ばれる
+  // （ゆらぎ 0 でも毎回同じ手にならず、駒を行ったり来たりさせて千日手になるのを防ぐ）
   const rootMoves = legalMoves(pos);
+  for (let i = rootMoves.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [rootMoves[i], rootMoves[j]] = [rootMoves[j] as string, rootMoves[i] as string];
+  }
   let result: AlphaBetaResult | undefined;
   for (let depth = 1; depth <= opts.maxDepth; depth++) {
     checkTime = depth > 1;
