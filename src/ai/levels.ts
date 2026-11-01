@@ -106,10 +106,9 @@ export const LEVELS: readonly LevelConfig[] = [
   },
   {
     id: 2,
-    // 「モルモット」の絵文字は無いので、にているハムスター
-    name: 'モルモット',
+    name: 'ハムスター',
     icon: '🐹',
-    description: '勝ったり負けたり。駒をとるのがじょうず',
+    description: '駒をとるのがだいすき。勝ったり負けたり',
     kind: 'kids',
     available: true,
     resigns: false,
@@ -165,9 +164,9 @@ export const LEVELS: readonly LevelConfig[] = [
   },
   {
     id: 6,
-    name: 'きつね',
-    icon: '🦊',
-    description: 'すこし先までよんでさすよ',
+    name: 'しばいぬ',
+    icon: '🐕',
+    description: 'まじめに、すこし先までよんでさすよ',
     kind: 'search',
     available: true,
     resigns: false,
@@ -175,9 +174,9 @@ export const LEVELS: readonly LevelConfig[] = [
   },
   {
     id: 7,
-    name: 'オオカミ',
-    icon: '🐺',
-    description: 'もうすこし先までよむよ。れんしゅうのしあげ',
+    name: 'ふくろう',
+    icon: '🦉',
+    description: 'ものしりで、もうすこし先までよむよ。れんしゅうのしあげ',
     kind: 'search',
     available: true,
     resigns: false,
