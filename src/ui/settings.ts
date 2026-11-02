@@ -8,11 +8,14 @@ export interface Settings {
   furigana: boolean;
   /** 駒の表示: かんじ / かんじ＋ふりがな / ひらがな */
   pieceStyle: PieceStyle;
+  /** 形勢ゲージ（しょうぶのゲージ）を出す */
+  gauge: boolean;
 }
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = {
   guide: true,
   furigana: true,
+  gauge: true,
   pieceStyle: 'kanjiRuby',
 };
 
@@ -24,7 +27,7 @@ function load(): Settings {
     if (!raw) return { ...DEFAULT_SETTINGS };
     const data: unknown = JSON.parse(raw);
     const obj = typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : {};
-    const flag = (key: 'guide' | 'furigana'): boolean =>
+    const flag = (key: 'guide' | 'furigana' | 'gauge'): boolean =>
       typeof obj[key] === 'boolean' ? obj[key] : DEFAULT_SETTINGS[key];
     const saved = PIECE_STYLES.find((st) => st === obj['pieceStyle']);
     // 以前の版の「駒をひらがなにする」（true/false）を引きつぐ
@@ -32,6 +35,7 @@ function load(): Settings {
     return {
       guide: flag('guide'),
       furigana: flag('furigana'),
+      gauge: flag('gauge'),
       pieceStyle: saved ?? legacy ?? DEFAULT_SETTINGS.pieceStyle,
     };
   } catch {

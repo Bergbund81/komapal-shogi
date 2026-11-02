@@ -113,8 +113,13 @@ export async function resultDialog(title: string, detail: string): Promise<boole
   return answer === true;
 }
 
-const SWITCHES: ReadonlyArray<{ key: 'guide' | 'furigana'; label: string; hint: string }> = [
+const SWITCHES: ReadonlyArray<{
+  key: 'guide' | 'furigana' | 'gauge';
+  label: string;
+  hint: string;
+}> = [
   { key: 'guide', label: '駒のうごきの点', hint: '駒に、うごける方向の点をだすよ' },
+  { key: 'gauge', label: 'しょうぶのゲージ', hint: 'どっちがいいかんじか、顔とバーでおしえるよ' },
   { key: 'furigana', label: 'ふりがな', hint: '漢字によみかたをつけるよ' },
 ];
 

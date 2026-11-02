@@ -139,7 +139,7 @@
 /* 横長（PC・タブレット横）: 持ち駒 | 盤 | 棋譜 */
 @media (min-aspect-ratio: 1/1) and (min-width: 700px) {
   :root {
-    --board-size: min(calc(100vw - 30rem), calc(100dvh - 11rem));
+    --board-size: min(calc(100vw - 30rem), calc(100dvh - 16.5rem));
   }
 
   .layout {

@@ -1,0 +1,112 @@
+/* ---- 形勢ゲージ（最上部）: 顔と一言が主役、評価値の数字は小さく ---- */
+.gauge {
+  margin: 6px 0;
+  padding: 6px 12px 8px;
+  border-radius: 12px;
+  border: 2px solid #d9c48f;
+  background: #fffaf0;
+  transition: opacity 0.3s;
+}
+
+.gauge[hidden] {
+  display: none;
+}
+
+.gauge.stale {
+  opacity: 0.6;
+}
+
+.gauge-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+}
+
+.gauge-face {
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.gauge-phrase {
+  font-size: 1.3rem;
+  font-weight: bold;
+}
+
+.gauge[data-mood='good'] .gauge-phrase {
+  color: #2f7a2a;
+}
+
+.gauge[data-mood='bad'] .gauge-phrase {
+  color: #b3261e;
+}
+
+.gauge-chip,
+.gauge-wait {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #dfe9f5;
+  font-size: 0.75rem;
+}
+
+.gauge-wait {
+  background: #ead9b0;
+}
+
+.gauge-chip[hidden],
+.gauge-wait[hidden] {
+  display: none;
+}
+
+/* 評価値は小さく、右はしに */
+.gauge-cp {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: #8a7a5a;
+  font-variant-numeric: tabular-nums;
+}
+
+.gauge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gauge-side {
+  flex: none;
+  min-width: 5.5em;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.gauge-left {
+  text-align: right;
+}
+
+.gauge-bar {
+  position: relative;
+  flex: 1;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 7px;
+  background: #e8b4ae; /* あいての色 */
+}
+
+/* じぶんの勝率ぶんを、右はしから伸ばす */
+.gauge-fill {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 50%;
+  border-radius: 7px;
+  background: #7cc06b; /* じぶんの色 */
+  transition: width 0.6s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gauge-fill,
+  .gauge {
+    transition: none;
+  }
+}

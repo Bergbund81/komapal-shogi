@@ -1,5 +1,11 @@
 // Worker の中身。DOM にも Worker にも依存しないので、Vitest からそのまま試せる。
 // L1〜3 = こども AI、L4〜7 = 自作αβ、L8〜10 = やねうら王（読み込めなければ自作αβ = かんたんモード）。
+import {
+  analyzeWithEngine,
+  analyzeWithSearch,
+  ANALYSIS_MS,
+  type Analysis,
+} from '../analysis/evaluate';
 import { INITIAL_SFEN, parseSfen, playMove, type Position } from '../rules';
 import {
   createWorkerBackend,
@@ -83,6 +89,11 @@ export function createAiHandler(
   let enginePromise: Promise<LoadedEngine | undefined> | undefined;
   /** いまエンジンが考えている要求 */
   let searchingId: number | undefined;
+  /** 手を選んでいる最中の choose の数。0 のときだけ解析してよい */
+  let activeChoose = 0;
+  /** 読むのを待っている解析（最新の 1 件だけ）と、いま読んでいる解析 */
+  let pendingAnalysis: Extract<AiRequest, { type: 'analyze' }> | undefined;
+  let analyzingId: number | undefined;
 
   function fallback(reason: string): undefined {
     post({ type: 'engine-status', status: 'fallback', reason });
@@ -119,6 +130,7 @@ export function createAiHandler(
       engineUrl === null
         ? Promise.resolve(fallback('エンジンを使わない設定です'))
         : loadEngine(engineUrl);
+    scheduleAnalysis(); // warmup 前に来ていた解析を始める
   }
 
   async function engineMove(
@@ -144,6 +156,66 @@ export function createAiHandler(
     } finally {
       if (searchingId === req.id) searchingId = undefined;
     }
+  }
+
+  /** エンジンに考えるのをやめさせる（考えていなければ何も起きない） */
+  function stopEngine(): void {
+    void enginePromise?.then((loaded) => loaded?.engine.stop());
+  }
+
+  /** 実行中の解析を中断し、待っている解析も捨てる（CPU の番になったとき） */
+  function abortAnalysis(): void {
+    pendingAnalysis = undefined;
+    if (analyzingId === undefined) return;
+    stopped.add(analyzingId);
+    stopEngine();
+  }
+
+  /** 解析は CPU が考えていないときだけ、1 件ずつ、最新のものを読む */
+  function scheduleAnalysis(): void {
+    // warmup の前は、エンジンがあるかどうか分からない。かんたん評価と取りちがえないよう待つ
+    if (!enginePromise || activeChoose > 0 || analyzingId !== undefined || !pendingAnalysis) return;
+    const req = pendingAnalysis;
+    pendingAnalysis = undefined;
+    analyzingId = req.id;
+    setTimeout(() => {
+      analyze(req)
+        .catch((err: unknown) => {
+          if (stopped.has(req.id)) return;
+          post({
+            type: 'error',
+            id: req.id,
+            message: err instanceof Error ? err.message : String(err),
+          });
+        })
+        .finally(() => {
+          analyzingId = undefined;
+          scheduleAnalysis();
+        });
+    }, 0);
+  }
+
+  async function analyze(req: Extract<AiRequest, { type: 'analyze' }>): Promise<void> {
+    const pos = buildPosition(req);
+    const loaded = await enginePromise;
+    if (stopped.has(req.id)) return;
+    let analysis: Analysis | undefined;
+    if (loaded) {
+      try {
+        analysis = await withTimeout(
+          analyzeWithEngine(loaded.engine, req, pos.turn),
+          ANALYSIS_MS + d.watchdogMs,
+        );
+      } catch (err) {
+        if (!(err instanceof Timeout)) throw err;
+        loaded.engine.dispose();
+        enginePromise = Promise.resolve(fallback(err.message));
+      }
+    }
+    if (stopped.has(req.id)) return;
+    // エンジンが無い（または止まった）ときは、自作αβで代わりに評価する（かんたん評価）
+    analysis ??= analyzeWithSearch(pos);
+    if (analysis) post({ type: 'analysis', id: req.id, analysis });
   }
 
   async function choose(req: Extract<AiRequest, { type: 'choose' }>): Promise<void> {
@@ -183,25 +255,37 @@ export function createAiHandler(
     }
     if (req.type === 'stop') {
       stopped.add(req.id);
-      if (searchingId === req.id) {
-        void enginePromise?.then((loaded) => loaded?.engine.stop());
-      }
+      if (pendingAnalysis?.id === req.id) pendingAnalysis = undefined;
+      if (searchingId === req.id || analyzingId === req.id) stopEngine();
       return;
     }
     if (req.type === 'analyze') {
-      post({ type: 'unsupported', id: req.id });
+      pendingAnalysis = req; // 待っていた古い解析は、これに置き換わる
+      scheduleAnalysis();
       return;
     }
+    // CPU が考えるのが先。読んでいる解析は止め、choose が終わるまで次の解析は始めない
+    activeChoose++;
+    abortAnalysis();
+    const finish = (): void => {
+      activeChoose--;
+      scheduleAnalysis();
+    };
     // 一度メッセージ処理に制御を返す。直後に stop が届いていれば計算せずに捨てる
     setTimeout(() => {
-      if (stopped.has(req.id)) return;
-      choose(req).catch((err: unknown) => {
-        post({
-          type: 'error',
-          id: req.id,
-          message: err instanceof Error ? err.message : String(err),
-        });
-      });
+      if (stopped.has(req.id)) {
+        finish();
+        return;
+      }
+      choose(req)
+        .catch((err: unknown) => {
+          post({
+            type: 'error',
+            id: req.id,
+            message: err instanceof Error ? err.message : String(err),
+          });
+        })
+        .finally(finish);
     }, 0);
   };
 }

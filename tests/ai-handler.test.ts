@@ -38,12 +38,6 @@ describe('createAiHandler', () => {
     expect(out.map(idOf)).toEqual([2]);
   });
 
-  it('analyze はフェーズ5まで unsupported', () => {
-    const out: AiResponse[] = [];
-    createAiHandler((r) => out.push(r))({ type: 'analyze', id: 3, ...spec });
-    expect(out).toEqual([{ type: 'unsupported', id: 3 }]);
-  });
-
   it('L4〜7 はエンジンを使わず自作αβで指し、評価値も返す', async () => {
     const out: AiResponse[] = [];
     const createBackend = vi.fn(() => Promise.resolve(fakeEngine()));
@@ -252,6 +246,132 @@ describe('createAiHandler（L8〜10 のやねうら王）', () => {
   });
 });
 
+const ANALYSIS_GO = 'go btime 0 wtime 0 byoyomi 500';
+/** 後手番になる局面（7g7f の後） */
+const goteTurn = { startSfen: INITIAL_SFEN, moves: ['7g7f'] };
+
+const analysisOf = (out: AiResponse[], id: number) =>
+  out.find((r) => r.type === 'analysis' && r.id === id);
+
+describe('createAiHandler（形勢の解析）', () => {
+  it('どのレベルでもやねうら王で読み、先手から見た評価値で返す', async () => {
+    const engine = fakeEngine((_pos, go) =>
+      go === ANALYSIS_GO ? ['info depth 9 score cp 250 pv 2g2f', 'bestmove 2g2f'] : BENCH_REPLY,
+    );
+    const { out, handle } = await engineHandler(engine);
+    handle({ type: 'analyze', id: 1, ...spec });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(engine.sent).toContain(`position sfen ${INITIAL_SFEN} moves 7g7f 3c3d`);
+    expect(analysisOf(out, 1)).toEqual({
+      type: 'analysis',
+      id: 1,
+      analysis: { source: 'engine', cp: 250 },
+    });
+  });
+
+  it('後手の番の評価値は、符号を先手から見た形にそろえる', async () => {
+    const engine = fakeEngine((_pos, go) =>
+      go === ANALYSIS_GO ? ['info depth 9 score cp -250 pv 8c8d', 'bestmove 8c8d'] : BENCH_REPLY,
+    );
+    const { out, handle } = await engineHandler(engine);
+    handle({ type: 'analyze', id: 1, ...goteTurn });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(analysisOf(out, 1)).toMatchObject({ analysis: { source: 'engine', cp: 250 } });
+  });
+
+  it('詰みが見えたら手数も返す', async () => {
+    const engine = fakeEngine((_pos, go) =>
+      go === ANALYSIS_GO ? ['info depth 9 score mate 5 pv 2g2f', 'bestmove 2g2f'] : BENCH_REPLY,
+    );
+    const { out, handle } = await engineHandler(engine);
+    handle({ type: 'analyze', id: 1, ...spec });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(analysisOf(out, 1)).toMatchObject({ analysis: { cp: 29995, mateIn: 5 } });
+  });
+
+  it('エンジンが使えないときは自作αβで読み、かんたん評価として返す', async () => {
+    const out: AiResponse[] = [];
+    const handle = createAiHandler((r) => out.push(r));
+    handle({ type: 'warmup', engineUrl: null });
+    handle({ type: 'analyze', id: 1, ...spec });
+    await vi.runAllTimersAsync();
+    expect(analysisOf(out, 1)).toMatchObject({ analysis: { source: 'simple', cp: 0 } });
+  });
+
+  it('warmup が届くまでは解析を始めない（かんたん評価と取りちがえない）', async () => {
+    const engine = fakeEngine((_pos, go) =>
+      go === ANALYSIS_GO ? ['info depth 9 score cp 250 pv 2g2f', 'bestmove 2g2f'] : BENCH_REPLY,
+    );
+    const out: AiResponse[] = [];
+    const handle = createAiHandler((r) => out.push(r), {
+      createBackend: () => Promise.resolve(engine),
+      unsupportedReason: () => undefined,
+      threads: () => 2,
+    });
+    handle({ type: 'analyze', id: 1, ...spec });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(out).toEqual([]);
+    handle({ type: 'warmup', engineUrl: 'engine/engine-host.js' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(analysisOf(out, 1)).toMatchObject({ analysis: { source: 'engine', cp: 250 } });
+  });
+
+  it('解析中に choose が来たら、解析を止めて（返事なし）CPU の手を先に返す', async () => {
+    const engine = fakeEngine((_pos, go) =>
+      go === ANALYSIS_GO
+        ? { onStop: ['info depth 3 score cp 10 pv 2g2f', 'bestmove 2g2f'] }
+        : go === 'go nodes 300000'
+          ? ['info depth 9 score cp 0 pv 8h2b+', 'bestmove 8h2b+']
+          : BENCH_REPLY,
+    );
+    const { out, handle } = await engineHandler(engine);
+    handle({ type: 'analyze', id: 1, ...spec });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(engine.sent.at(-1)).toBe(ANALYSIS_GO);
+    handle({ type: 'choose', id: 2, level: 9, ...spec });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(engine.sent).toContain('stop');
+    expect(out.at(-1)).toMatchObject({ type: 'bestmove', id: 2, move: '8h2b+' });
+    expect(analysisOf(out, 1)).toBeUndefined();
+  });
+
+  it('CPU が考えている間は解析を始めず、終わってから最新の 1 件だけ読む', async () => {
+    const engine = fakeEngine((_pos, go) =>
+      go === 'go nodes 300000'
+        ? { onStop: ['info depth 9 score cp 0 pv 8h2b+', 'bestmove 8h2b+'] }
+        : go === ANALYSIS_GO
+          ? ['info depth 9 score cp 100 pv 2g2f', 'bestmove 2g2f']
+          : BENCH_REPLY,
+    );
+    const { out, handle } = await engineHandler(engine);
+    handle({ type: 'choose', id: 1, level: 9, ...spec });
+    await vi.advanceTimersByTimeAsync(0);
+    handle({ type: 'analyze', id: 2, ...spec });
+    handle({ type: 'analyze', id: 3, ...goteTurn });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(engine.sent).not.toContain(ANALYSIS_GO); // choose が終わるまで待つ
+    handle({ type: 'stop', id: 1 }); // choose を終わらせる
+    await vi.advanceTimersByTimeAsync(0);
+    expect(analysisOf(out, 2)).toBeUndefined(); // 古い要求は捨てられた
+    expect(analysisOf(out, 3)).toMatchObject({ analysis: { cp: -100 } });
+  });
+
+  it('stop した解析には返事を出さない', async () => {
+    const engine = fakeEngine((_pos, go) =>
+      go === ANALYSIS_GO
+        ? { onStop: ['info depth 3 score cp 10 pv 2g2f', 'bestmove 2g2f'] }
+        : BENCH_REPLY,
+    );
+    const { out, handle } = await engineHandler(engine);
+    handle({ type: 'analyze', id: 1, ...spec });
+    await vi.advanceTimersByTimeAsync(0);
+    handle({ type: 'stop', id: 1 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(engine.sent.at(-1)).toBe('stop');
+    expect(analysisOf(out, 1)).toBeUndefined();
+  });
+});
+
 /** AiClient と handler を、Worker の代わりにそのままつなぐ */
 function loopbackWorker(): WorkerLike & { sent: AiRequest[] } {
   const sent: AiRequest[] = [];
@@ -289,6 +409,17 @@ describe('AiClient', () => {
     vi.runAllTimers();
     expect(await caught).toBeInstanceOf(AiCancelledError);
     expect(worker.sent.map((r) => r.type)).toEqual(['choose', 'stop']);
+  });
+
+  it('analyze は結果を返し、新しい analyze は前のをやめる。stop() は解析を巻き込まない', async () => {
+    const client = new AiClient(loopbackWorker);
+    client.warmup(null); // エンジンなし = かんたん評価
+    const first = client.analyze(spec).catch((e: unknown) => e);
+    const second = client.analyze(spec);
+    client.stop(); // 手選びだけをやめる
+    await vi.runAllTimersAsync();
+    expect(await first).toBeInstanceOf(AiCancelledError);
+    expect(await second).toMatchObject({ source: 'simple' });
   });
 
   it('Worker がエラーになったら待っていた要求は失敗し、次の要求でつくり直す', async () => {

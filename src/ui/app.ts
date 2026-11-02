@@ -11,10 +11,13 @@ import {
 } from '../game/config';
 import { GameSession } from '../game/session';
 import { opposite, type Color } from '../rules';
+import { finishedView, gaugeView } from '../analysis/evaluate';
+import { AnalysisTurn } from './analysis-turn';
 import { BoardView, kingSquareOf } from './board';
 import { CpuTurn } from './cpu-turn';
 import { askPromotion, confirmDialog, resultDialog, settingsDialog } from './dialogs';
 import { ruby, setRuby } from './furigana';
+import { Gauge } from './gauge';
 import { renderHand } from './hands';
 import { renderHistory } from './history';
 import { Interaction } from './interaction';
@@ -69,6 +72,7 @@ export function startApp(root: HTMLElement): void {
   let session = new GameSession();
   let interaction = new Interaction(session);
   let cpuTurn: CpuTurn | undefined;
+  let analysisTurn: AnalysisTurn | undefined;
   let cpuError = false;
   let engineStatus: EngineStatus = 'loading';
   let flipped = false;
@@ -105,6 +109,8 @@ export function startApp(root: HTMLElement): void {
   const badge = el('span', 'mode-badge', header);
   const engineNote = el('span', 'engine-note', header);
   label(engineNote, EASY_MODE_MESSAGE);
+  const gauge = new Gauge();
+  root.append(gauge.el);
   const message = el('p', 'message', root);
   message.setAttribute('role', 'status');
   message.setAttribute('aria-live', 'polite');
@@ -184,7 +190,37 @@ export function startApp(root: HTMLElement): void {
     return { text: turnMessage(session.turn, sideNames()), tone: 'info' };
   }
 
+  /** ゲージの「じぶん」側。CPU 戦では人、ふたり対戦ではいま下に見えている側 */
+  const gaugeViewer = (): Color => game.humanColor ?? (flipped ? 'gote' : 'sente');
+
+  function renderGauge(): void {
+    const show = getSettings().gauge;
+    gauge.el.hidden = !show;
+    if (!show) return;
+    const viewer = gaugeViewer();
+    const status = session.status();
+    const names = sideNames();
+    const named =
+      game.mode === 'cpu'
+        ? { opponentName: 'あいて', myName: 'じぶん' }
+        : { opponentName: names[opposite(viewer)], myName: names[viewer] };
+    if (status.type !== 'playing') {
+      const winner = 'winner' in status ? status.winner : undefined;
+      gauge.render({ view: finishedView(winner, viewer), stale: false, waiting: false, ...named });
+      return;
+    }
+    const latest = analysisTurn?.latest;
+    gauge.render({
+      view: latest ? gaugeView(latest, viewer) : undefined,
+      stale: analysisTurn?.isFresh === false,
+      waiting: analysisTurn?.isWaiting === true,
+      ...named,
+    });
+  }
+
   function render(): void {
+    analysisTurn?.sync(); // 人の番になったら形勢を読み、CPU が考え始めたらやめる
+    renderGauge();
     const pos = session.position;
     const sel = interaction.selection;
     board.render({
@@ -248,12 +284,21 @@ export function startApp(root: HTMLElement): void {
   /** 新しい対局を始める。start=false なら CPU はまだ考え始めない（開始ダイアログの裏用） */
   function startNewGame(config: GameConfig, start = true): void {
     cpuTurn?.cancel();
+    analysisTurn?.cancel();
     game = resolveGame(config);
     session = new GameSession();
     interaction = new Interaction(session, isHuman);
     flipped = game.humanColor === 'gote';
     announced = false;
     cpuError = false;
+    analysisTurn = new AnalysisTurn({
+      session,
+      client,
+      humanColor: game.humanColor,
+      isCpuThinking: () => cpuTurn?.isThinking === true,
+      enabled: () => getSettings().gauge,
+      onChange: renderGauge,
+    });
     cpuTurn =
       game.mode === 'cpu' && game.humanColor
         ? new CpuTurn({

@@ -8,7 +8,7 @@
   --piece-edge: #8a5a1c;
   --red: #c4281c;
   --accent: #f5a623;
-  --board-size: min(calc(100vw - 24px), max(20rem, calc(100dvh - 25.5rem)));
+  --board-size: min(calc(100vw - 24px), max(20rem, calc(100dvh - 31rem)));
   font-family:
     'Hiragino Maru Gothic ProN', 'BIZ UDPGothic', 'Yu Gothic UI', Meiryo, system-ui, sans-serif;
   color: var(--ink);
